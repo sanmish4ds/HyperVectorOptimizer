@@ -11,3 +11,8 @@ __pycache__/
 *.synctex.gz
 .DS_Store
 results/dev.json
+pg/*.o
+pg/*.dylib
+pg/*.bc
+hvo/kernels/libacorn.so
+results/dev*

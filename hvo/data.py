@@ -88,21 +88,45 @@ def is_integral(v):
     return bool(np.all(v == np.round(v)))
 
 
-def histogram_edges(v, B):
-    """Equi-depth bin edges. For integer-valued columns, edges sit at half-integers so that no
-    integer value straddles a bin boundary (ties make plain quantile edges collapse)."""
-    e = np.quantile(v, np.linspace(0, 1, B + 1))
+def column_kind(v, B):
+    """'int' for integer-valued columns, 'mass' when some value is frequent enough to make equi-depth
+    edges coincide (a point mass, e.g. a default price of 0), else 'cont'."""
     if is_integral(v):
+        return "int"
+    e = np.quantile(v, np.linspace(0, 1, B + 1))
+    return "mass" if np.unique(e).size < B + 1 else "cont"
+
+
+def histogram_edges(v, B):
+    """Equi-depth bin edges (B + 1 of them).
+    int : edges at half-integers, so no integer value straddles a bin boundary;
+    mass: every value that occupies several equi-depth edges gets its own bin [u, nextafter(u));
+    cont: plain quantiles."""
+    e = np.quantile(v, np.linspace(0, 1, B + 1))
+    kind = column_kind(v, B)
+    if kind == "int":
         e = np.floor(e) + 0.5
         e[0], e[-1] = float(v.min()) - 0.5, float(v.max()) + 0.5
         e = np.maximum.accumulate(e)
+    elif kind == "mass":
+        u, c = np.unique(e, return_counts=True)
+        out = []
+        for x, n in zip(u, c):
+            out.append(float(x))
+            if n > 1:                                     # point mass: an exact bin
+                out.append(float(np.nextafter(np.float32(x), np.float32(np.inf))))
+        while len(out) < B + 1:                           # pad with empty bins above the maximum
+            out.append(float(np.nextafter(np.float32(out[-1]), np.float32(np.inf))))
+        e = np.array(out[:B + 1])
     return e
 
 
-def range_bounds(lo, hi, integral):
-    """Inclusive [lo, hi] on an integer column covers the continuous interval [ceil(lo)-1/2, floor(hi)+1/2]."""
-    if integral:
+def range_bounds(lo, hi, kind):
+    """Map an inclusive predicate [lo, hi] onto the histogram's continuous axis."""
+    if kind is True or kind == "int":                     # True: sketches built before 'mass' existed
         return float(np.ceil(lo)) - 0.5, float(np.floor(hi)) + 0.5
+    if kind == "mass":                                    # include a point mass sitting exactly at hi
+        return lo, float(np.nextafter(np.float32(hi), np.float32(np.inf)))
     return lo, hi
 
 

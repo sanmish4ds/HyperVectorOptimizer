@@ -1,0 +1,37 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 76ba69b..2ae7c8f 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -77,7 +77,7 @@ if(NOT nlohmann_json_POPULATED)
+     add_subdirectory(${nlohmann_json_SOURCE_DIR} ${nlohmann_json_BINARY_DIR})
+ endif()
+ 
+-target_include_directories(faiss PUBLIC ${nlohmann_json_SOURCE_DIR}/include)
++target_include_directories(faiss PUBLIC $<BUILD_INTERFACE:${nlohmann_json_SOURCE_DIR}/include>)
+ 
+ find_package(ZLIB REQUIRED)
+ target_link_libraries(faiss PUBLIC ${ZLIB_LIBRARIES})
+diff --git a/faiss/impl/ACORN.cpp b/faiss/impl/ACORN.cpp
+index e2c3da5..1de2ae5 100644
+--- a/faiss/impl/ACORN.cpp
++++ b/faiss/impl/ACORN.cpp
+@@ -682,7 +682,9 @@ void add_link(
+     
+     
+ 
+-    // ...and back
++    // ...and back. Upper levels are not shrunk above, so resultSet can hold end - begin + 1 entries;
++    // drop the farthest so the copy-back stays inside this node's neighbour slot (heap overflow otherwise).
++    while (resultSet.size() > end - begin) resultSet.pop();
+     size_t i = begin;
+     while (resultSet.size()) {
+         // hnsw.neighbors[i++] = resultSet.top().id;
+@@ -1058,7 +1060,7 @@ void ACORN::add_with_locks(
+     float d_nearest = ptdis(nearest);
+ 
+     // needed for backtracking in hybrid search - TODO DEPRECATED, remove backtracking things
+-    std::vector<storage_idx_t> ep_per_level(max_level); // idx of nearest node per level
++    std::vector<storage_idx_t> ep_per_level(max_level + 1); // idx of nearest node per level (was max_level: off by one)
+     ep_per_level[level] = nearest;
+ 
+     for (; level > pt_level; level--) {

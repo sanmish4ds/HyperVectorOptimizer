@@ -11,16 +11,26 @@ hvo/
   data.py         synthetic vector-relational generator with controllable correlation; predicates
   sketch.py       HPBS construction (Python) + query path (Python reference and C via ctypes)
   estimators.py   baselines: 1-D histograms (PG-style), exact-s_g (Milvus-style), 1% sample, index probe
-  plans.py        the three physical plans on faiss HNSW: pre-filter scan, fused, iterative post-filter
+  plans.py        pre-filter scan; first-generation graph plans (restart post-filter, faiss bitmap fused)
+  graphplans.py   second-generation graph plans: resumable post-filter, ACORN-1 fused
+  kernels/graph.c resumable ef-window HNSW scan
+  kernels/acorn_wrap.cpp, build_acorn.sh, acorn_fixes.patch   ACORN reference code behind a C ABI
+                                                                (with two heap-overflow fixes)
   kernels/scan.c  id-list-guided top-k scan: NEON FP32, scalar FP32, NEON SDOT INT8
-  kernels/est.c   HPBS query-time estimator
+  kernels/est.c   HPBS query-time estimator and the native planner hvo_plan()
+pg/
+  hvo_pg.c        PostgreSQL 16 planner_hook extension for pgvector (shares hvo_plan with the benchmark)
 experiments/
   prep_arxiv.py   real-data benchmark: arXiv metadata + MiniLM embeddings (1M papers + query pool)
   build.py        dataset + HNSW + sketches + queries (disjoint train/test) + exact ground truth
   gt.py           exact k-th-match local selectivity (s_loc = k / h_k)
   run_est.py      every estimator on every query (estimates, features, planning time)
   run_plans.py    every plan on every query, single thread, warm-up + median of repetitions
-  analyze.py      fits calibrator and cost model on train, evaluates on test -> results/<name>.json
+  analyze.py      fits calibrator, cost and recall models on train, evaluates on test -> results/<name>.json
+  transfer.py     calibrator trained on one dataset, used on another
+  native_plan.py  times the native planner and checks it agrees with analyze.py
+  pg_*.py         PostgreSQL: load, benchmark configurations, fit/export the hook's model, summarise
+  prep_amazon.py  second real dataset (Amazon Reviews 2023 metadata, query-anchored predicates)
   make_tables.py  LaTeX tables / figure data from results/*.json
 ```
 

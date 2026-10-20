@@ -21,25 +21,27 @@ RECALL_OK = 0.9
 
 # ------------------------------------------------------------------------------ loading
 def load_all(name):
-    G = load(name, "queries.pkl")
-    E = load(name, "est.pkl")
-    R = load(name, "plans.pkl")
+    G = load(name, QFILE)
+    E = load(name, EFILE)
+    R = load(name, PFILE)
+    fk, pk = PLAN_KEYS
     n = len(R)
     A = dict(sg=G["sg"][:n], sloc=G["sloc"][:n], tau=np.full(n, DATASETS[name][0] / K, float),
              split=G["split"][:n],
              nterm=np.array([p.n_terms() for p in G["P"][:n]], float),
              join=np.array([bool(p.dim_ins) for p in G["P"][:n]], float))
     A["rho"] = rho_gls(A["sloc"], A["sg"]); A["regime"] = regime(A["rho"])
-    for v in ("simd", "scalar", "i8"):
+    A["kernels"] = [v for v in ("simd", "scalar", "i8") if f"pre_{v}" in R[0]]
+    for v in A["kernels"]:
         A[f"t_pre_{v}"] = np.array([r[f"pre_{v}"]["t"] for r in R])
         A[f"rec_pre_{v}"] = np.array([r[f"pre_{v}"]["recall"] for r in R])
     A["t_rel"] = np.array([r["pre_simd"]["t_rel"] for r in R])
     A["n_scan"] = np.array([r["pre_simd"]["n_scan"] for r in R], float)
-    for p in ("post", "fused"):
-        A[f"t_{p}"] = np.array([r[p]["t"] for r in R])
-        A[f"rec_{p}"] = np.array([r[p]["recall"] for r in R])
-        A[f"ndis_{p}"] = np.array([sum(x["ndis"] for x in r[p]["rounds"]) for r in R], float)
-    A["rounds_post"] = [r["post"]["rounds"] for r in R]
+    for p, key in (("post", pk), ("fused", fk)):      # plan set chosen by HVO_PLANS
+        A[f"t_{p}"] = np.array([r[key]["t"] for r in R])
+        A[f"rec_{p}"] = np.array([r[key]["recall"] for r in R])
+        A[f"ndis_{p}"] = np.array([sum(x.get("ndis", 0) for x in r[key]["rounds"]) for r in R], float)
+    A["rounds_post"] = [r[pk]["rounds"] for r in R]
     A["est"] = {k: np.array([[row[k][0], row[k][1], row[k][2]] for row in E["rows"][:n]])
                 for k in E["rows"][0] if not k.endswith("_feat")}
     A["feat"] = {k[:-5]: np.array([row[k] for row in E["rows"][:n]]) for k in E["rows"][0] if k.endswith("_feat")}
@@ -88,6 +90,33 @@ class Calibrator:
         for f in F[:200]:
             self.forward(f[None, :])
         return (time.perf_counter() - t) / min(200, len(F)) * 1e6
+
+
+# ------------------------------------------------------------------------ recall model
+class RecallModel:
+    """P(Recall@k >= RECALL_OK) for each graph plan, logistic in features available at planning time
+    (log s_loc estimate, log s_g estimate, #terms, join). Pre-filtering is exact and always admissible."""
+
+    def fit(self, F, rec_ok):
+        from sklearn.linear_model import LogisticRegression
+        self.m = []
+        for j in range(rec_ok.shape[1]):
+            y = rec_ok[:, j].astype(int)
+            if y.min() == y.max():
+                self.m.append(float(y[0])); continue
+            self.m.append(LogisticRegression(C=1.0, max_iter=1000).fit(F, y))
+        return self
+
+    def proba(self, F):
+        return np.stack([np.full(len(F), m) if isinstance(m, float) else m.predict_proba(F)[:, 1]
+                         for m in self.m], 1)
+
+    def coefs(self):
+        return [(m, None) if isinstance(m, float) else (float(m.intercept_[0]), m.coef_[0].tolist()) for m in self.m]
+
+
+def recall_features(sg_hat, sl_hat, nterm, join):
+    return np.stack([np.log(np.maximum(sl_hat, 1e-7)), np.log(np.maximum(sg_hat, 1e-7)), nterm, join], 1)
 
 
 # ------------------------------------------------------------------------ cost model
@@ -146,10 +175,27 @@ class CostModel:
                 if best is None or err < best[3]:
                     best = (cf, beta, p_, err)
         self.cf, self.beta, self.fused_p, _ = best
+        # ACORN stops adaptively (most queries cheap, a few explode), which no smooth staircase fits:
+        # the fitted variable term collapses to zero. For it we use a monotone (isotonic) regression of
+        # time on the k-th-match horizon, fitted in linear time so that it predicts the expected cost.
+        self.iso = None
+        if PLANSET == "v2":
+            from sklearn.isotonic import IsotonicRegression
+            x = np.log(np.minimum(K / s, CAP))
+            ir = IsotonicRegression(increasing=True, out_of_bounds="clip").fit(x, tf)
+            self.iso = (ir.X_thresholds_.astype(float), ir.y_thresholds_.astype(float))
+            ir2 = IsotonicRegression(increasing=True, out_of_bounds="clip").fit(x, np.maximum(A["ndis_fused"][tr], 1))
+            self.iso_ndis = (ir2.X_thresholds_.astype(float), ir2.y_thresholds_.astype(float))
         # hardware-agnostic variant: same plan shapes, but every distance evaluation costs the same
         self.ndis_post, _ = fit_stair(k_exp(s), np.maximum(A["ndis_post"][tr], 1), 0)
         self.ndis_fused, _ = fit_stair(self.fused_need(s), np.maximum(A["ndis_fused"][tr], 1), 1)
         return self
+
+    def fused_cost(self, s, agnostic=False):
+        if self.iso is not None:
+            xs, ys = self.iso_ndis if agnostic else self.iso
+            return np.interp(np.log(np.minimum(K / s, CAP)), xs, ys)
+        return staircase(self.ndis_fused if agnostic else self.fused_p, self.fused_need(s), 1)
 
     def fused_need(self, s):
         return self.cf * (K / s) ** self.beta
@@ -160,11 +206,11 @@ class CostModel:
     def costs(self, sg, sloc, tau, nterm, join, agnostic=False):
         s = floor_s(sloc, tau)
         if agnostic:
-            return np.stack([sg * self.N, staircase(self.ndis_fused, self.fused_need(s), 1),
+            return np.stack([sg * self.N, self.fused_cost(s, agnostic=True),
                              staircase(self.ndis_post, k_exp(s), 0)], 1)
         rel = self.rel_cost(nterm, join)
         pre = rel + self.pre_c[0] + self.pre_c[1] * sg * self.N
-        fused = rel + staircase(self.fused_p, self.fused_need(s), 1)
+        fused = rel + self.fused_cost(s)
         post = staircase(self.post_p, k_exp(s), 0)
         return np.stack([pre, fused, post], 1)
 
@@ -173,7 +219,9 @@ class CostModel:
         return dict(rel_ns_per_row_term=self.rel[1] * 1e9, rel_ns_per_row_join=self.rel[2] * 1e9,
                     rel_fixed_us=self.rel[0] * 1e6, pre_fixed_us=self.pre_c[0] * 1e6,
                     scan_ns_per_vec=self.pre_c[1] * 1e9, post=f(self.post_p), fused=f(self.fused_p),
-                    fused_cf=self.cf, fused_beta=self.beta, ndis_post=f(self.ndis_post), ndis_fused=f(self.ndis_fused))
+                    fused_cf=self.cf, fused_beta=self.beta, ndis_post=f(self.ndis_post), ndis_fused=f(self.ndis_fused),
+                    fused_isotonic=self.iso is not None,
+                    fused_iso_points=0 if self.iso is None else len(self.iso[0]))
 
 
 # ------------------------------------------------------------------------------ metrics
@@ -197,6 +245,7 @@ def evaluate(choice, t, rec, t_plan, opt_t, opt_c, extra=None):
         lat = extra + t_plan
     reg = lat / opt_t
     return dict(lat_ms=pct(lat * 1e3), recall=float(rec[np.arange(n), choice].mean()),
+                low_recall=float((rec[np.arange(n), choice] < RECALL_OK).mean()),
                 plan_acc=float((choice == opt_c).mean()), regret=pct(reg),
                 split=[int((choice == j).sum()) for j in range(3)], plan_us=float(np.median(t_plan) * 1e6))
 
@@ -256,7 +305,7 @@ def main(name):
 
     # ---------------- cost model
     out["routing"] = {}
-    for pre in ("simd", "scalar", "i8"):
+    for pre in A["kernels"]:
         CM = CostModel().fit(A, tr, N, pre=pre)
         t, rec = plan_times(A, pre)
         opt_c, opt_t = oracle(t, rec)
@@ -299,6 +348,29 @@ def main(name):
         R["hvo-raw"] = R["rob-hpbs"]
         R["hvo-L1"] = R["rob-hpbs-L1+cal"]
         R["hvo-agnostic"], _ = cbo(raw[te, 0], s_cal[te], est_time["hpbs+cal"][te], agnostic=True)
+        # recall-aware HVO: graph plans are admissible only if P(recall >= RECALL_OK) >= TAU_REC
+        TAU_REC = 0.9
+        Ftr = recall_features(raw[tr, 0], s_cal[tr], A["nterm"][tr], A["join"][tr])
+        Fte = recall_features(raw[te, 0], s_cal[te], A["nterm"][te], A["join"][te])
+        RM = RecallModel().fit(Ftr, rec[tr][:, 1:] >= RECALL_OK)
+        ok = np.concatenate([np.ones((te.sum(), 1)), RM.proba(Fte)], 1) >= TAU_REC
+        C_rec = np.where(ok, C_hvo, np.inf)
+        R["hvo-recall"] = evaluate(C_rec.argmin(1), tt, rr, est_time["hpbs+cal"][te], ot, oc)
+        R["hvo-recall"]["tau"] = TAU_REC
+        R["recall_model"] = RM.coefs()
+        if pre == "simd":
+            planner = dict(
+                eta=float(R["eta_train"]["hpbs+cal"]), tau_rec=TAU_REC, recall_model=RM.coefs(),
+                cal=dict(mu=cal.mu.tolist(), sd=cal.sd.tolist(), W=[w.tolist() for w in cal.m.coefs_],
+                         b=[b.tolist() for b in cal.m.intercepts_]),
+                cost=dict(rel=CM.rel.tolist(), pre_c=CM.pre_c.tolist(), post=list(map(float, CM.post_p)),
+                          fused=list(map(float, CM.fused_p)), cf=float(CM.cf), beta=float(CM.beta),
+                          iso_x=[] if CM.iso is None else CM.iso[0].tolist(),
+                          iso_y=[] if CM.iso is None else CM.iso[1].tolist()),
+                test_idx=np.flatnonzero(te).tolist(), choice_hvo=C_hvo.argmin(1).tolist(),
+                choice_hvo_recall=C_rec.argmin(1).tolist())
+            with open(rfile(name).replace(".json", "_planner.json"), "w") as f:
+                json.dump(planner, f)
         for b_ in ("pg-hist", "exact-avi", "sample-1%", "probe"):
             R[f"cbo-{b_}"] = R[f"pt-{b_}"]
         for j, p in enumerate(PLANS):
@@ -353,7 +425,17 @@ def main(name):
     C_true = CM.costs(A["sg"][te], A["sloc"][te], *args)
     rng = np.random.default_rng(0)
     noise = []
-    lam = lambda eta: max(float(lam_stair(eta, CM.post_p[2], 1.0)), float(lam_stair(eta, CM.fused_p[2], CM.beta)))
+    def lam_fused(eta):
+        """Sensitivity of the fused cost to a factor-eta error in s: closed form for a staircase (Lemma 1),
+        computed numerically for the isotonic model (ignoring C_rel >= 0 only makes it larger)."""
+        if CM.iso is None:
+            return float(lam_stair(eta, CM.fused_p[2], CM.beta))
+        xs, ys = CM.iso
+        g = np.linspace(xs[0] - 1, xs[-1] + 1, 400)
+        f = lambda x: np.interp(x, xs, ys)
+        d = np.log(max(eta, 1.0))
+        return float(max(1.0, np.max(np.maximum(f(g + d) / f(g), f(g) / f(g + d)))))
+    lam = lambda eta: max(float(lam_stair(eta, CM.post_p[2], 1.0)), lam_fused(eta))
     for eta in [1.0, 1.1, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 6.0, 8.0]:
         mr, me, viol_g, viol_t, rr_, rme, viol_r = [], [], 0, 0, [], [], 0
         for rep in range(20):
@@ -384,7 +466,7 @@ def main(name):
 
     # ---------------- phase boundary (Theorem 1) from the fitted model, per kernel
     pb = {}
-    for pre in ("simd", "scalar", "i8"):
+    for pre in A["kernels"]:
         CMp = CostModel().fit(A, tr, N, pre=pre)
         bnd = []
         for sl in [0.001, 0.003, 0.01, 0.02, 0.05, 0.1, 0.3]:
@@ -400,7 +482,7 @@ def main(name):
     curves = {}
     sl_grid = np.logspace(np.log10(K / N), 0, 60)
     gs = np.logspace(np.log10(K / N), 0, 600)
-    for pre in ("simd", "scalar", "i8"):
+    for pre in A["kernels"]:
         CMp = CostModel().fit(A, tr, N, pre=pre)
         cur = []
         for sl in sl_grid:
@@ -433,7 +515,7 @@ def main(name):
             b["q90_" + n_] = float(np.percentile(qerr(est_sloc[n_][te][m], sl_te[m], A["tau"][te][m]), 90))
         bins.append(b)
     out["bins"] = bins
-    with open(os.path.join(RESULTS, f"{name}.json"), "w") as f:
+    with open(rfile(name), "w") as f:
         json.dump(out, f, indent=1, default=float)
     return out
 

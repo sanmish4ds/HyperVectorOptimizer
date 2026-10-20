@@ -20,7 +20,7 @@ def main(name):
     log = {}
     t = time.time()
     if not os.path.exists(os.path.join(D, "X.npy")):
-        assert not name.startswith("arxiv"), "run prep_arxiv.py first"
+        assert not name.startswith(("arxiv", "amazon")), "run the dataset's prep script first"
         T = make_table(N, d, seed=seed)
         np.save(os.path.join(D, "X.npy"), T.X)
         save(dict(cols=T.cols, kinds=T.kinds, fk=T.fk, dim_cols=T.dim_cols, topic=T.topic), name, "table_meta.pkl")
@@ -57,6 +57,12 @@ def main(name):
             Qpool = np.load(os.path.join(D, "Qpool.npy"))
             Qtr, Ptr = make_queries_from_pool(T, Qpool, N_TRAIN, seed=seed + 1000, offset=0)
             Qte, Pte = make_queries_from_pool(T, Qpool, N_TEST, seed=seed + 2000, offset=N_TRAIN)
+        elif name.startswith("amazon"):
+            # real data with query-anchored predicates built by prep_amazon.py
+            Qpool = np.load(os.path.join(D, "Qpool.npy"))
+            pp = load(name, "pool_preds.pkl")["preds"]
+            Qtr, Ptr = np.ascontiguousarray(Qpool[:N_TRAIN]), pp[:N_TRAIN]
+            Qte, Pte = np.ascontiguousarray(Qpool[N_TRAIN:N_TRAIN + N_TEST]), pp[N_TRAIN:N_TRAIN + N_TEST]
         else:
             Qtr, Ptr = make_queries(T, N_TRAIN, seed=seed + 1000)
             Qte, Pte = make_queries(T, N_TEST, seed=seed + 2000)

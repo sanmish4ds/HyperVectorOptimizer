@@ -14,10 +14,22 @@ DATASETS = {
     "syn-128": (1_000_000, 128, 11),
     "syn-768": (1_000_000, 768, 22),
     "arxiv-384": (1_000_000, 384, 33),
+    "amazon-384": (990_000, 384, 44),
     "dev": (100_000, 128, 1),
 }
-K = 10
+# k and the plan set are selected per run through the environment:
+#   HVO_K      top-k (default 10); k != 10 uses files suffixed _k{K}
+#   HVO_PLANS  v2 (default): resumable post-filter + ACORN fused; v1: restart post-filter + faiss-filtered fused
+K = int(os.environ.get("HVO_K", "10"))
+KS = "" if K == 10 else f"_k{K}"
+PLANSET = os.environ.get("HVO_PLANS", "v2")
+PLAN_KEYS = {"v1": ("fused", "post"), "v2": ("acorn", "post_r")}[PLANSET]
+QFILE, EFILE, PFILE = f"queries{KS}.pkl", f"est{KS}.pkl", f"plans{KS}.pkl"
 N_TRAIN, N_TEST = 1000, 1500
+
+
+def rfile(name):
+    return os.path.join(RESULTS, f"{name}{KS}{'' if PLANSET == 'v2' else '_v1'}.json")
 
 
 def ddir(name):

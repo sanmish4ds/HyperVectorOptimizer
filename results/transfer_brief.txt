@@ -1,0 +1,20 @@
+ arxiv-384 -> arxiv-384   Q p50 1.44 p99    6.17  eta  2.52  mean 1.41 p99 9.19 reg99 3.18
+amazon-384 -> arxiv-384   Q p50 1.65 p99   16.34  eta  3.55  mean 1.40 p99 9.19 reg99 2.91
+   syn-128 -> arxiv-384   Q p50 1.53 p99    5.82  eta  1.87  mean 1.34 p99 8.78 reg99 2.74
+   syn-768 -> arxiv-384   Q p50 1.58 p99    7.37  eta  2.10  mean 1.36 p99 9.32 reg99 2.80
+      none -> arxiv-384   Q p50 1.98 p99    9.95  eta  6.23  mean 1.55 p99 9.41 reg99 5.06
+ arxiv-384 -> amazon-384  Q p50 1.67 p99   31.54  eta  2.52  mean 0.95 p99 6.81 reg99 5.59
+amazon-384 -> amazon-384  Q p50 1.55 p99   16.31  eta  3.55  mean 0.96 p99 6.99 reg99 6.54
+   syn-128 -> amazon-384  Q p50 1.83 p99   24.51  eta  1.87  mean 0.91 p99 6.62 reg99 3.43
+   syn-768 -> amazon-384  Q p50 1.87 p99   24.77  eta  2.10  mean 0.88 p99 6.68 reg99 3.45
+      none -> amazon-384  Q p50 3.32 p99   29.86  eta  8.54  mean 1.17 p99 7.64 reg99 20.23
+ arxiv-384 -> syn-128     Q p50 1.48 p99    4.41  eta  2.52  mean 0.77 p99 3.27 reg99 3.70
+amazon-384 -> syn-128     Q p50 1.71 p99   11.52  eta  3.55  mean 0.77 p99 3.24 reg99 3.70
+   syn-128 -> syn-128     Q p50 1.29 p99    3.08  eta  1.87  mean 0.72 p99 3.21 reg99 3.24
+   syn-768 -> syn-128     Q p50 1.33 p99    3.57  eta  2.10  mean 0.73 p99 3.20 reg99 3.24
+      none -> syn-128     Q p50 1.47 p99    9.83  eta  4.51  mean 0.83 p99 3.50 reg99 5.02
+ arxiv-384 -> syn-768     Q p50 1.49 p99    4.80  eta  2.52  mean 1.28 p99 7.16 reg99 3.00
+amazon-384 -> syn-768     Q p50 1.71 p99   10.38  eta  3.55  mean 1.23 p99 6.44 reg99 2.90
+   syn-128 -> syn-768     Q p50 1.29 p99    4.38  eta  1.87  mean 1.18 p99 5.53 reg99 2.77
+   syn-768 -> syn-768     Q p50 1.31 p99    4.31  eta  2.10  mean 1.18 p99 5.57 reg99 2.77
+      none -> syn-768     Q p50 1.53 p99   14.11  eta  5.73  mean 1.50 p99 8.03 reg99 7.09

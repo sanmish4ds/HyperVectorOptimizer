@@ -13,7 +13,7 @@ fractions (independence *within* a cell only). The median over the L partitions 
 import time
 import numpy as np
 import faiss
-from .data import is_integral, histogram_edges, range_bounds
+from .data import is_integral, column_kind, histogram_edges, range_bounds
 
 N_RAD = 16  # radial quantiles per cell
 
@@ -97,7 +97,8 @@ class HPBS:
             self.parts.append(Partition(cent, a, T.X))
         self.m = len(self.parts[0].cent)
         # global equi-depth bin edges for numeric columns
-        self.integral = {c: is_integral(v) for c, v in T.cols.items() if T.kinds[c] == "num"}
+        # per numeric column: "int", "mass" or "cont" (see hvo.data.histogram_edges)
+        self.integral = {c: column_kind(v, B) for c, v in T.cols.items() if T.kinds[c] == "num"}
         self.edges = {c: histogram_edges(v, B).astype(np.float32)
                       for c, v in T.cols.items() if T.kinds[c] == "num"}
         self.hist = []   # per partition: col -> (m, nbins+1) cumulative fractions (num) or (m, K) fractions (cat)

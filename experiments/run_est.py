@@ -26,7 +26,7 @@ def timed(fn, reps=3):
 def main(name):
     faiss.omp_set_num_threads(1)
     T, idx = load_table_and_index(name)
-    G = load(name, "queries.pkl")
+    G = load(name, QFILE)
     ests = {"pg-hist": HistAVI(T), "exact-avi": ExactAVI(T), "sample-1%": UniformSample(T, 0.01),
             "probe": IndexProbe(T, idx, P=256)}
     sk = {}
@@ -48,7 +48,7 @@ def main(name):
             print(i, f"{time.time() - t0:.0f}s", flush=True)
     meta = {n_: E.nbytes() for n_, E in ests.items()}
     meta.update({n_: b for n_, (_, b) in sk.items()})
-    save(dict(rows=rows, bytes=meta), name, "est.pkl")
+    save(dict(rows=rows, bytes=meta), name, EFILE)
 
 
 if __name__ == "__main__":
