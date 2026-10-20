@@ -187,7 +187,7 @@ def abl_table(R):
     rows = []
     items = [("hvo", "HVO (robust, $L{=}4$, calibrated)"), ("hvo-point", "\\quad point routing (no interval)"),
              ("hvo-recall", "\\quad + recall constraint"), ("hvo-raw", "\\quad without calibrator"),
-             ("hvo-L1", "\\quad $L{=}1$ partition"), ("hvo-agnostic", "\\quad hardware-agnostic cost (distance counts)"),
+             ("hvo-L1", "\\quad $L{=}1$ partition"), ("hvo-agnostic", "\\quad counted cost (distance evaluations)"),
              ("hvo+guard", "\\quad + runtime early-exit guard"), ("rob75-hpbs+cal", "\\quad interval $q{=}0.75$"),
              ("rob95-hpbs+cal", "\\quad interval $q{=}0.95$"), ("hvo-noplan", "\\quad planning time excluded")]
     for k, nm in items:
