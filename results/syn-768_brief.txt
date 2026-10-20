@@ -1,0 +1,58 @@
+syn-768 regimes {'anti': 647, 'indep': 605, 'pos': 248} rare 60
+  pg-hist    all p50 1.87 p95 8.02 p99 29.90 | anti p99 58.44 pos p99 18.73 | 10us 0.00MB
+  exact-avi  all p50 1.88 p95 8.10 p99 30.18 | anti p99 58.94 pos p99 19.01 | 1516us 0.00MB
+  sample-1%  all p50 1.94 p95 10.17 p99 24.73 | anti p99 32.87 pos p99 15.31 | 530us 30.80MB
+  probe      all p50 1.20 p95 3.16 p99 6.06 | anti p99 7.71 pos p99 2.27 | 163us 0.00MB
+  hpbs-cp    all p50 2.73 p95 22.24 p99 31.60 | anti p99 22.05 pos p99 35.77 | 134us 3.97MB
+  hpbs-m256  all p50 2.63 p95 32.57 p99 54.71 | anti p99 19.17 pos p99 78.57 | 62us 3.97MB
+  hpbs-L1    all p50 1.54 p95 10.24 p99 19.84 | anti p99 10.37 pos p99 23.05 | 47us 3.97MB
+  hpbs       all p50 1.54 p95 8.81 p99 14.58 | anti p99 6.90 pos p99 18.60 | 143us 15.88MB
+  hpbs+cal   all p50 1.32 p95 2.55 p99 4.72 | anti p99 3.68 pos p99 6.84 | 147us 15.88MB
+  hpbs-L1+cal all p50 1.33 p95 2.95 p99 6.20 | anti p99 4.74 pos p99 8.45 | 51us 3.97MB
+  hpbs-m256+cal all p50 1.48 p95 3.99 p99 8.12 | anti p99 5.86 pos p99 13.29 | 66us 3.97MB
+  hpbs-cp+cal all p50 1.58 p95 6.19 p99 19.11 | anti p99 35.68 pos p99 17.64 | 138us 3.97MB
+  cost model {"rel_ns_per_row_term": 0.5394476343044009, "rel_ns_per_row_join": 0.45629455924288115, "rel_fixed_us": 326.1042652998882, "pre_fixed_us": 59.40567460187005, "scan_ns_per_vec": 107.59610630460736, "post": {"b0_us": 137.317916052383, "b1_ns": 6.1407060278550345, "gamma": 1.7408701238710085}, "fused": {"b0_us": 3.105552005577768, "b1_ns": 0.0011173925950834563, "gamma": 2.4999999999999996}, "fused_cf": 1, "fused_beta": 1.0, "ndis_post": {"b0_us": 996754144.9298337, "b1_ns": 7404598293.376975, "gamma": 0.8846622730025308}, "ndis_fused": {"b0_us": 1278460818.7605474, "b1_ns": 8478058.256014043, "gamma": 1.5255725037433767}}
+  oracle           p50 0.63 p95 5.87 p99 13.87 mean 1.83 acc 100.0 reg mean 1.00 p99 1.00 rec 0.989 split [298, 162, 1040]
+  cbo-true         p50 0.42 p95 6.64 p99 18.15 mean 2.06 acc 82.4 reg mean 1.12 p99 4.33 rec 0.957 split [219, 201, 1080]
+  pt-hpbs+cal      p50 0.68 p95 6.45 p99 18.00 mean 2.15 acc 82.2 reg mean 1.68 p99 4.76 rec 0.957 split [211, 157, 1132]
+  rob-hpbs+cal     p50 0.75 p95 6.70 p99 14.63 mean 2.04 acc 74.9 reg mean 1.77 p99 6.08 rec 0.959 split [283, 293, 924]
+  rob50-hpbs+cal   p50 0.69 p95 6.85 p99 18.50 mean 2.18 acc 79.5 reg mean 1.71 p99 5.26 rec 0.957 split [236, 211, 1053]
+  rob75-hpbs+cal   p50 0.71 p95 6.74 p99 17.20 mean 2.06 acc 78.5 reg mean 1.71 p99 4.55 rec 0.957 split [257, 238, 1005]
+  rob95-hpbs+cal   p50 0.80 p95 6.70 p99 14.48 mean 1.97 acc 70.5 reg mean 1.86 p99 6.36 rec 0.959 split [317, 328, 855]
+  rob99-hpbs+cal   p50 1.25 p95 7.61 p99 13.63 mean 2.27 acc 57.3 reg mean 2.36 p99 9.88 rec 0.965 split [417, 441, 642]
+  pt-hpbs-L1+cal   p50 0.50 p95 6.58 p99 17.66 mean 2.02 acc 82.5 reg mean 1.29 p99 4.73 rec 0.957 split [210, 156, 1134]
+  rob-hpbs-L1+cal  p50 0.63 p95 6.73 p99 16.10 mean 1.98 acc 72.4 reg mean 1.43 p99 5.17 rec 0.959 split [288, 339, 873]
+  rob50-hpbs-L1+cal p50 0.51 p95 6.53 p99 17.65 mean 1.97 acc 80.5 reg mean 1.30 p99 4.34 rec 0.957 split [233, 211, 1056]
+  rob75-hpbs-L1+cal p50 0.52 p95 6.68 p99 17.41 mean 1.94 acc 77.3 reg mean 1.33 p99 4.07 rec 0.958 split [260, 269, 971]
+  rob95-hpbs-L1+cal p50 0.90 p95 6.68 p99 13.17 mean 2.04 acc 65.5 reg mean 1.63 p99 6.46 rec 0.962 split [344, 392, 764]
+  rob99-hpbs-L1+cal p50 1.42 p95 7.91 p99 12.33 mean 2.35 acc 53.3 reg mean 2.34 p99 11.85 rec 0.972 split [477, 475, 548]
+  pt-hpbs          p50 0.70 p95 6.94 p99 17.99 mean 2.20 acc 78.7 reg mean 1.72 p99 5.31 rec 0.957 split [229, 246, 1025]
+  rob-hpbs         p50 1.91 p95 8.93 p99 14.27 mean 2.97 acc 34.7 reg mean 4.02 p99 15.71 rec 0.988 split [535, 801, 164]
+  pt-probe         p50 0.80 p95 7.32 p99 17.50 mean 2.21 acc 80.5 reg mean 1.68 p99 4.76 rec 0.959 split [262, 164, 1074]
+  rob-probe        p50 1.02 p95 7.60 p99 16.72 mean 2.15 acc 69.9 reg mean 1.86 p99 6.64 rec 0.959 split [324, 325, 851]
+  rob50-probe      p50 0.82 p95 7.26 p99 17.50 mean 2.22 acc 78.7 reg mean 1.71 p99 4.83 rec 0.958 split [262, 210, 1028]
+  rob75-probe      p50 0.84 p95 7.33 p99 17.74 mean 2.27 acc 76.4 reg mean 1.73 p99 5.05 rec 0.958 split [268, 261, 971]
+  rob95-probe      p50 1.23 p95 7.61 p99 15.12 mean 2.25 acc 60.6 reg mean 2.13 p99 7.79 rec 0.963 split [385, 410, 705]
+  rob99-probe      p50 1.58 p95 8.81 p99 13.30 mean 2.68 acc 49.7 reg mean 2.92 p99 12.92 rec 0.972 split [515, 470, 515]
+  pt-exact-avi     p50 1.97 p95 17.44 p99 168.89 mean 16.52 acc 76.8 reg mean 8.69 p99 41.15 rec 0.958 split [154, 83, 1263]
+  rob-exact-avi    p50 2.39 p95 8.00 p99 49.81 mean 9.68 acc 59.5 reg mean 6.66 p99 31.46 rec 0.964 split [340, 488, 672]
+  pt-pg-hist       p50 0.45 p95 15.24 p99 166.55 mean 8.37 acc 77.1 reg mean 2.85 p99 40.75 rec 0.958 split [156, 79, 1265]
+  rob-pg-hist      p50 1.14 p95 6.21 p99 46.95 mean 8.13 acc 58.7 reg mean 2.90 p99 16.85 rec 0.964 split [349, 497, 654]
+  pt-sample-1%     p50 0.99 p95 10.60 p99 53.39 mean 9.11 acc 76.1 reg mean 4.28 p99 14.45 rec 0.958 split [171, 176, 1153]
+  rob-sample-1%    p50 1.68 p95 9.11 p99 17.18 mean 2.99 acc 56.5 reg mean 4.19 p99 21.49 rec 0.968 split [438, 423, 639]
+  hvo              p50 0.75 p95 6.70 p99 14.63 mean 2.04 acc 74.9 reg mean 1.77 p99 6.08 rec 0.959 split [283, 293, 924]
+  hvo-point        p50 0.68 p95 6.45 p99 18.00 mean 2.15 acc 82.2 reg mean 1.68 p99 4.76 rec 0.957 split [211, 157, 1132]
+  hvo-raw          p50 1.91 p95 8.93 p99 14.27 mean 2.97 acc 34.7 reg mean 4.02 p99 15.71 rec 0.988 split [535, 801, 164]
+  hvo-L1           p50 0.63 p95 6.73 p99 16.10 mean 1.98 acc 72.4 reg mean 1.43 p99 5.17 rec 0.959 split [288, 339, 873]
+  hvo-agnostic     p50 0.70 p95 8.04 p99 47.63 mean 4.54 acc 74.0 reg mean 2.05 p99 8.41 rec 0.956 split [208, 346, 946]
+  cbo-pg-hist      p50 0.45 p95 15.24 p99 166.55 mean 8.37 acc 77.1 reg mean 2.85 p99 40.75 rec 0.958 split [156, 79, 1265]
+  cbo-exact-avi    p50 1.97 p95 17.44 p99 168.89 mean 16.52 acc 76.8 reg mean 8.69 p99 41.15 rec 0.958 split [154, 83, 1263]
+  cbo-sample-1%    p50 0.99 p95 10.60 p99 53.39 mean 9.11 acc 76.1 reg mean 4.28 p99 14.45 rec 0.958 split [171, 176, 1153]
+  cbo-probe        p50 0.80 p95 7.32 p99 17.50 mean 2.21 acc 80.5 reg mean 1.68 p99 4.76 rec 0.959 split [262, 164, 1074]
+  always-pre       p50 12.07 p95 65.81 p99 77.77 mean 20.25 acc 19.9 reg mean 102.49 p99 776.11 rec 1.000 split [1500, 0, 0]
+  always-fused     p50 1.61 p95 60.35 p99 2702.76 mean 160.87 acc 10.8 reg mean 71.50 p99 1521.64 rec 0.974 split [0, 1500, 0]
+  always-post      p50 0.42 p95 62.74 p99 577.76 mean 41.94 acc 69.3 reg mean 18.67 p99 259.81 rec 0.959 split [0, 0, 1500]
+  global-2way      p50 0.64 p95 8.11 p99 9.06 mean 2.87 acc 70.1 reg mean 3.01 p99 43.97 rec 0.965 split [595, 0, 905]
+  global-3way      p50 0.64 p95 6.48 p99 15.42 mean 2.64 acc 70.5 reg mean 2.29 p99 25.34 rec 0.964 split [502, 93, 905]
+  hvo+guard        p50 0.75 p95 6.70 p99 14.63 mean 2.05 acc 74.9 reg mean 1.78 p99 6.17 rec 0.959 split [283, 293, 924]
+  hvo-noplan       p50 0.54 p95 6.54 p99 14.49 mean 1.85 acc 74.9 reg mean 1.20 p99 4.95 rec 0.959 split [283, 293, 924]

@@ -1,0 +1,13 @@
+data/
+results/raw/
+scratch/
+*.so
+__pycache__/
+*.aux
+*.log
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+.DS_Store
+results/dev.json
