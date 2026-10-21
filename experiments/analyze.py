@@ -229,6 +229,18 @@ def pct(x, ps=(50, 90, 95, 99)):
     return {f"p{p}": float(np.percentile(x, p)) for p in ps} | {"mean": float(np.mean(x)), "max": float(np.max(x))}
 
 
+BOOT_B, BOOT_SEED = 2000, 0
+
+
+def boot_ci(x, y=None):
+    """95% percentile-bootstrap interval of mean(x) over queries (the experimental unit), or, with y,
+    of the paired relative gain 1 - mean(x)/mean(y). B = 2000 resamples, fixed seed."""
+    rng = np.random.default_rng(BOOT_SEED)
+    idx = rng.integers(0, len(x), size=(BOOT_B, len(x)))
+    s = x[idx].mean(1) if y is None else 1.0 - x[idx].mean(1) / y[idx].mean(1)
+    return [float(np.percentile(s, 2.5)), float(np.percentile(s, 97.5))]
+
+
 def oracle(t, rec):
     """Fastest plan whose recall@k >= RECALL_OK; if no plan qualifies, the highest-recall plan."""
     tt = np.where(rec >= RECALL_OK, t, np.inf)
@@ -244,7 +256,9 @@ def evaluate(choice, t, rec, t_plan, opt_t, opt_c, extra=None):
     if extra is not None:
         lat = extra + t_plan
     reg = lat / opt_t
-    return dict(lat_ms=pct(lat * 1e3), recall=float(rec[np.arange(n), choice].mean()),
+    return dict(lat_ms=pct(lat * 1e3), lat_ci95=boot_ci(lat * 1e3),
+                lat_cdf=[float(v) for v in np.percentile(lat * 1e3, np.arange(1, 100))], _lat=lat,
+                recall=float(rec[np.arange(n), choice].mean()),
                 low_recall=float((rec[np.arange(n), choice] < RECALL_OK).mean()),
                 plan_acc=float((choice == opt_c).mean()), regret=pct(reg),
                 split=[int((choice == j).sum()) for j in range(3)], plan_us=float(np.median(t_plan) * 1e6))
@@ -413,6 +427,13 @@ def main(name):
         # calibration error of the cost model on the test split, best plan only
         kap = np.exp(np.abs(np.log(C_true[np.arange(len(oc)), oc] / ot)))
         R["kappa_cal"] = pct(kap)
+        best = min(("global-2way", "global-3way"), key=lambda k_: R[k_]["lat_ms"]["mean"])
+        for v in ("hvo", "hvo-L1", "hvo-recall"):
+            x, y = R[v]["_lat"], R[best]["_lat"]
+            R[v]["gain_vs_global"] = {"vs": best, "gain": float(1 - x.mean() / y.mean()), "ci95": boot_ci(x, y)}
+        for d_ in R.values():
+            if isinstance(d_, dict):
+                d_.pop("_lat", None)
         out["routing"][pre] = R
         out.setdefault("cost_model", {})[pre] = CM.describe()
         if pre == "simd":

@@ -310,6 +310,71 @@ def fig_coords(R):
     return "\n".join(lines) + "\n"
 
 
+KWORD = {1: "One", 10: "Ten", 100: "Hundred"}
+PGMODES = ["stock", "iter", "exqutor", "pre", "post", "hvo_norec", "hvo", "oracle"]
+
+
+def fig_coords2(R, RK, P):
+    """Coordinates for the result figures: latency CDFs, gain over the global router with 95% bootstrap
+    intervals across k, PostgreSQL recall-latency points, the interval-width sweep and the plan split."""
+    lines = []
+    for n, _ in DS:
+        o = R.get(n)
+        if o is None:
+            continue
+        t, r = TAG[n], o["routing"]["simd"]
+        best = min(("global-2way", "global-3way"), key=lambda x: r[x]["lat_ms"]["mean"])
+        for key, nm in (("always-pre", "Pre"), ("always-post", "Post"), ("always-fused", "Fused"), (best, "Global"),
+                        ("rob-probe", "Probe"), ("hvo", "Hvo"), ("oracle", "Oracle")):
+            cdf = r[key]["lat_cdf"]
+            lines.append(f"\\def\\cdf{nm}{t}{{" + " ".join(f"({v:.4g},{q})" for q, v in zip(range(1, 100), cdf)) + "}")
+        # gain of HVO over the best global router, per k, with its paired bootstrap interval (in %)
+        pts = []
+        for k in (1, 10, 100):
+            rk = RK.get((n, k))
+            if rk is None:
+                continue
+            g = rk["routing"]["simd"]["hvo"]["gain_vs_global"]
+            lo, hi = 100 * g["ci95"][0], 100 * g["ci95"][1]
+            x = k * {"C": 0.82, "D": 0.93, "A": 1.07, "B": 1.22}[t]
+            pts.append(f"({x:.3g},{100 * g['gain']:.2f}) += (0,{hi - 100 * g['gain']:.2f}) -= (0,{100 * g['gain'] - lo:.2f})")
+        lines.append(f"\\def\\gainci{t}{{" + " ".join(pts) + "}")
+        # interval-width sweep: point routing (q = 0) and minimax routing at train Q-error quantile q
+        sweep = [(0.0, "pt-hpbs+cal"), (0.5, "rob50-hpbs+cal"), (0.75, "rob75-hpbs+cal"), (0.9, "rob-hpbs+cal"),
+                 (0.95, "rob95-hpbs+cal"), (0.99, "rob99-hpbs+cal")]
+        for stat, nm in (("mean", "Mean"), ("p99", "Pnn")):
+            lines.append(f"\\def\\sweep{nm}{t}{{" + " ".join(f"({q},{r[k]['lat_ms'][stat]:.4g})" for q, k in sweep) + "}")
+        # plan split (share of test queries routed to each plan), order pre, fused, post
+        for key, nm in (("oracle", "Oracle"), (best, "Global"), ("hvo", "Hvo")):
+            sp = r[key]["split"]
+            tot = sum(sp)
+            lines.append(f"\\def\\split{nm}{t}{{{100 * sp[0] / tot:.1f}/{100 * sp[1] / tot:.1f}/{100 * sp[2] / tot:.1f}}}")
+    # plan split as stacked-bar coordinates: x = <dataset tag><o|g|h> for oracle, global, HVO
+    spl = {0: [], 1: [], 2: []}
+    for n, _ in DS:
+        o = R.get(n)
+        if o is None:
+            continue
+        r = o["routing"]["simd"]
+        best = min(("global-2way", "global-3way"), key=lambda x: r[x]["lat_ms"]["mean"])
+        for key, sfx in (("oracle", "o"), (best, "g"), ("hvo", "h")):
+            sp = r[key]["split"]
+            for j in range(3):
+                spl[j].append(f"({TAG[n]}{sfx},{100 * sp[j] / sum(sp):.1f})")
+    for j, nm in enumerate(("Pre", "Fused", "Post")):
+        lines.append(f"\\def\\splitall{nm}{{" + " ".join(spl[j]) + "}")
+    for n, _ in DS:
+        d = P.get(n)
+        if not d:
+            continue
+        t = TAG[n]
+        for m in PGMODES:
+            if m in d:
+                nm = "".join(w.capitalize() for w in m.split("_"))
+                lines.append(f"\\def\\pg{nm}{t}{{({d[m]['lat_ms']['mean']:.4g},{d[m]['recall']:.4f})}}")
+    return "\n".join(lines) + "\n"
+
+
 def main():
     R = {n: load(n) for n, _ in DS}
     R1 = {n: load(n + "_v1") for n, _ in DS}
@@ -317,7 +382,7 @@ def main():
     P = load("pg") or {}
     TR = load("transfer") or {"pairs": []}
     NAT = {n: load(n + "_native") for n, _ in DS}
-    m = macros(R) + noise_coords(R) + extra_macros(R, RK, P, TR, NAT)
+    m = macros(R) + noise_coords(R) + extra_macros(R, RK, P, TR, NAT) + ci_macros(R)
     open(os.path.join(OUT, "numbers.tex"), "w").write(m)
     open(os.path.join(OUT, "card_rows.tex"), "w").write(card_table(R))
     open(os.path.join(OUT, "e2e_real_rows.tex"), "w").write(e2e_table(R, ("arxiv-384", "amazon-384")))
@@ -328,8 +393,28 @@ def main():
     open(os.path.join(OUT, "k_rows.tex"), "w").write(k_table(RK))
     open(os.path.join(OUT, "transfer_rows.tex"), "w").write(transfer_table(TR))
     open(os.path.join(OUT, "impl_rows.tex"), "w").write(impl_table(R, R1))
-    open(os.path.join(OUT, "figdata.tex"), "w").write(fig_coords(R))
+    open(os.path.join(OUT, "figdata.tex"), "w").write(fig_coords(R) + fig_coords2(R, RK, P))
     print("wrote", sorted(os.listdir(OUT)))
+
+
+def ci_macros(R):
+    """95% bootstrap intervals (over test queries) for the headline k=10 comparisons."""
+    m = []
+    for n, _ in DS:
+        o = R.get(n)
+        if o is None:
+            continue
+        t, r = TAG[n], o["routing"]["simd"]
+        for v, nm in (("hvo", "Hvo"), ("hvo-L1", "HvoLOne"), ("hvo-recall", "HvoRecall")):
+            g = r[v]["gain_vs_global"]
+            m.append(f"\\newcommand{{\\Gain{nm}{t}}}{{{100 * g['gain']:.0f}}}")
+            m.append(f"\\newcommand{{\\GainLo{nm}{t}}}{{{100 * g['ci95'][0]:.0f}}}")
+            m.append(f"\\newcommand{{\\GainHi{nm}{t}}}{{{100 * g['ci95'][1]:.0f}}}")
+        for v, nm in (("hvo", "Hvo"), ("global-2way", "GlobalTwoWay"), ("oracle", "Oracle")):
+            lo, hi = r[v]["lat_ci95"]
+            m.append(f"\\newcommand{{\\CILo{nm}{t}}}{{{lo:.2f}}}")
+            m.append(f"\\newcommand{{\\CIHi{nm}{t}}}{{{hi:.2f}}}")
+    return "\n".join(m) + "\n"
 
 
 def extra_macros(R, RK, P, TR, NAT):

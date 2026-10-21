@@ -45,15 +45,16 @@
 }
 \email{divya.95j@gmail.com}
 
+
 \begin{abstract}
-Filtered top-$k$ vector search---a nearest-neighbor query restricted by relational predicates and foreign-key semi-joins---can be executed by pre-filtering and scanning the survivors, by filtering inline during graph traversal, or by post-filtering an unfiltered graph search. Which plan is fastest depends less on the predicate's global selectivity than on its \emph{local} selectivity around the query vector, and engines that route on global selectivity misroute exactly the correlated queries that matter. We present \emph{HyperVector-Optimizer} (HVO), which routes each query on its local selectivity. (i) We define local selectivity operationally, as $k$ divided by the number of tuples at least as close to the query as its $k$-th match: exactly the horizon a post-filtering plan must cover. (ii) The \emph{Polytope-Ball Sketch} (HPBS) estimates it without touching the vector index. It partitions the vector space into $k$-means cells that carry radial distance profiles, per-attribute histograms and row-weighted foreign-key samples, and a 497-parameter calibrator corrects its residual bias. (iii) A minimax router prices the plans and picks the one whose worst-case cost over the estimator's uncertainty interval is smallest. The plan costs must be measured on the target machine rather than counted: costing every distance computation equally makes routing 1.6--6.3$\times$ slower. (iv) HVO runs as a PostgreSQL planner hook for \texttt{pgvector}. We prove a sensitivity lemma for doubling plans, regret bounds for point and minimax routing (the latter has zero regret whenever the exactly costed pre-filter plan is optimal), and a lower bound showing that, when predicates are evaluated through an index, any router using only global selectivity has regret that grows polynomially in the table size. We evaluate on two real datasets (one million arXiv papers and one million Amazon products, with real metadata and MiniLM embeddings) and two synthetic ones, running every plan for every query, against a resumable post-filter, ACORN, tuned global-selectivity routers and an HNSW-probing estimator. On arXiv, HPBS reaches a P99 local-selectivity Q-error of $\QHpbsPlusCalPnnC$, against $\QProbePnnC$ for index probing and $\QPgHistPnnC$ for independence-based histograms, and it stays accurate on rare local matches ($\QHpbsPlusCalRareC$ vs.\ $\QProbeRareC$). Inside PostgreSQL, stock \texttt{pgvector} and Exqutor (built from its released code) reach a mean Recall@10 of only $\PGStockRecC$ on arXiv. HVO is both faster and more accurate than \texttt{pgvector}'s forced iterative scan ($\PGHvoNorecMeanC$ vs.\ $\PGPostMeanC$\,ms; recall $\PGHvoNorecRecC$ vs.\ $\PGPostRecC$), and a recall-aware variant approaches the oracle's recall. Relative to the best tuned global-selectivity router, HVO lowers mean latency by $\MeanGainVsGlobalC\%$ (arXiv) and $\MeanGainVsGlobalD\%$ (Amazon) and P99 latency by up to $4\times$; on synthetic data the means tie. HVO does not help at $k=1$, where planning time dominates, and index probing remains competitive on Amazon. We release the code, the patches and every experiment.
+Filtered top-$k$ vector search---a nearest-neighbor query restricted by relational predicates and foreign-key semi-joins---can be executed by pre-filtering and scanning the survivors, by filtering inline during graph traversal, or by post-filtering an unfiltered graph search. Which plan is fastest depends less on the predicate's global selectivity than on its \emph{local} selectivity around the query vector, and engines that route on global selectivity misroute exactly the correlated queries that matter. We present \emph{HyperVector-Optimizer} (HVO), which routes each query on its local selectivity. (i) We define local selectivity operationally, as $k$ divided by the number of tuples at least as close to the query as its $k$-th match: exactly the horizon a post-filtering plan must cover. (ii) The \emph{Polytope-Ball Sketch} (HPBS) estimates it without touching the vector index. It partitions the vector space into $k$-means cells that carry radial distance profiles, per-attribute histograms and row-weighted foreign-key samples, and a 497-parameter calibrator corrects its residual bias. (iii) A minimax router prices the plans and picks the one whose worst-case cost over the estimator's uncertainty interval is smallest. The plan costs must be measured on the target machine rather than counted: costing every distance computation equally makes routing 1.6--6.3$\times$ slower. (iv) HVO runs as a PostgreSQL planner hook for \texttt{pgvector}. We prove a sensitivity lemma for doubling plans, regret bounds for point and minimax routing (the latter has zero regret whenever the exactly costed pre-filter plan is optimal), and a lower bound showing that, when predicates are evaluated through an index, any router using only global selectivity has regret that grows polynomially in the table size. We evaluate on two real datasets (one million arXiv papers and one million Amazon products, with real metadata and MiniLM embeddings) and two synthetic ones, running every plan for every query, against a resumable post-filter, ACORN, tuned global-selectivity routers and an HNSW-probing estimator. On arXiv, HPBS reaches a P99 local-selectivity Q-error of $\QHpbsPlusCalPnnC$, against $\QProbePnnC$ for index probing and $\QPgHistPnnC$ for independence-based histograms, and it stays accurate on rare local matches ($\QHpbsPlusCalRareC$ vs.\ $\QProbeRareC$). Inside PostgreSQL, stock \texttt{pgvector} and Exqutor (built from its released code) reach a mean Recall@10 of only $\PGStockRecC$ on arXiv. HVO is both faster and more accurate than \texttt{pgvector}'s forced iterative scan ($\PGHvoNorecMeanC$ vs.\ $\PGPostMeanC$\,ms; recall $\PGHvoNorecRecC$ vs.\ $\PGPostRecC$), and a recall-aware variant approaches the oracle's recall. Relative to the best tuned global-selectivity router, HVO lowers mean latency on arXiv by $\GainHvoC\%$ (95\% bootstrap interval $\GainLoHvoC$--$\GainHiHvoC\%$). On Amazon its $\GainHvoD\%$ reduction is not distinguishable from zero ($\GainLoHvoD$ to $\GainHiHvoD\%$), while the single-partition variant's $\GainHvoLOneD\%$ is ($\GainLoHvoLOneD$--$\GainHiHvoLOneD\%$). P99 latency falls by up to $4\times$, and on synthetic data the means tie. HVO does not help at $k=1$, where planning time dominates. We release the code, the patches, every experiment and both real benchmarks.
 \end{abstract}
 
-\keywords{Vector databases, filtered approximate nearest neighbor search, cardinality estimation, query optimization, HNSW, PostgreSQL, pgvector, regret bounds}
+\keywords{Filtered vector search, approximate nearest neighbor search, selectivity estimation, query optimization, PostgreSQL}
 
 \maketitle
 
-\section{Introduction}
+\section{Introduction}\label{sec:intro}
 Retrieval-augmented generation, recommendation, and analytical workloads increasingly issue \emph{filtered} vector queries: a top-$k$ similarity search over embeddings restricted by relational predicates and joins~\cite{wei2020analyticdbv,zhang2023vbase,patel2024acorn,amanbayev2026fanns}. A typical query is
 \begin{equation}\label{eq:sql_example}
 \begin{aligned}
@@ -62,48 +63,105 @@ Retrieval-augmented generation, recommendation, and analytical workloads increas
 &\texttt{ORDER BY } \operatorname{dist}(r.\mathbf{v}, \mathbf{q}) \texttt{ LIMIT } k.
 \end{aligned}
 \end{equation}
+Eq.~\eqref{eq:sql_example} combines a range predicate, an \texttt{IN} list and a semi-join through a foreign key with a similarity ordering, and every engine that stores vectors next to relational data must answer it.
+
 General-purpose engines expose vector indexes inside the relational executor (PostgreSQL's \texttt{pgvector}~\cite{pgvector2024}, DuckDB's \texttt{vss}~\cite{duckdbvss2024}), and specialized systems attach predicate bitmaps to graph and partition indexes (Milvus~\cite{wang2021milvus}). Whatever the engine, three physical plans are available:
 \begin{enumerate}
     \item \emph{Pre-filtering} ($\Ppre$): evaluate the predicate, then scan the $\sg N$ qualifying vectors with a SIMD kernel. Exact, and its cost depends only on the global selectivity $\sg$.
     \item \emph{Post-filtering} ($\Ppost$): search the unfiltered HNSW graph~\cite{malkov2018hnsw} and verify the predicate on candidates, enlarging the candidate budget until $k$ matches are found (as in \texttt{pgvector}'s iterative scan and VBase~\cite{zhang2023vbase}).
     \item \emph{Fused traversal} ($\Pfus$): materialize the predicate bitmap and filter inline during graph traversal~\cite{patel2024acorn,wang2021milvus}.
 \end{enumerate}
+
 The cost of the two graph plans is governed by how far the graph search must travel before it meets $k$ matching tuples. That distance depends on the \emph{local} selectivity $\sloc$ of the predicate near the query, not on $\sg$. When the filter is anti-correlated with the query's neighborhood---a machine-learning query vector filtered to \texttt{category = 'Medieval History'}---a moderate $\sg$ hides a tiny $\sloc$ and post-filtering traverses a large part of the graph. When the filter is positively correlated, a small $\sg$ hides a large $\sloc$ and pre-filtering scans many vectors that post-filtering would never touch.
 
-\emph{The problem.} Optimizers today route on global selectivity, estimated with one-dimensional histograms under attribute-value independence~\cite{selinger1979systemr}, or on an exact predicate count that ignores the vector. Recent work recognizes that this fails: Exqutor estimates vector-search cardinality inside the optimizer by probing the index or sampling~\cite{exqutor2026}, and benchmark studies document large performance swings under correlated filters~\cite{amanbayev2026fanns,iff2025benchmark,shi2025unified}. Three questions remain open: what exactly the local selectivity that decides the plan is, how to estimate it cheaply without touching the index during planning, and how to route robustly, inside a real database, when the estimates are wrong.
+Optimizers today route on global selectivity, estimated with one-dimensional histograms under attribute-value independence~\cite{selinger1979systemr}, or on an exact predicate count that ignores the vector. Recent work recognizes that this fails: Exqutor estimates vector-search cardinality inside the optimizer by probing the index or sampling~\cite{exqutor2026}, and benchmark studies document large performance swings under correlated filters~\cite{amanbayev2026fanns,iff2025benchmark,shi2025unified}. Three questions remain open: what exactly the local selectivity that decides the plan is, how to estimate it cheaply without touching the index during planning, and how to route robustly, inside a real database, when the estimates are wrong.
 
-\emph{Our approach.} HVO answers each question with a component, and each component comes with an analysis and a measurement:
+This paper presents HyperVector-Optimizer (HVO), which answers each question with a component, and backs each component with an analysis and a measurement. We evaluate on two real and two synthetic datasets on one machine (an Apple M4; no x86 server), with plans built on faiss~\cite{douze2024faiss} and ACORN and, separately, inside PostgreSQL; Section~\ref{sec:discussion} discusses what this does and does not establish. The main contributions are:
 \begin{itemize}
-    \item \textbf{Local selectivity defined by the $k$-th match (Section~\ref{sec:formulation}).} We define local selectivity operationally, as $k/h_k$ where $h_k$ is the number of tuples at least as close to $\mathbf{q}$ as its $k$-th matching tuple. This is exactly the horizon a post-filtering plan must cover. A fixed-radius definition, which we used first, predicted graph-plan cost poorly under anti-correlation.
-    \item \textbf{HPBS, a polytope-ball sketch (Section~\ref{sec:sketch}).} HPBS estimates $h_k$ from $L$ partitions of $m$ $k$-means cells, each carrying a radial distance profile, per-attribute histograms and a row-weighted bottom-$k$ sample of foreign keys; a bisection finds the radius whose estimated ball holds $k$ matches. It never touches the vector index during planning, and its query path is C ($\QHpbsPlusCalUsA$--$\QHpbsPlusCalUsB\,\mu$s). It is most valuable on rare local matches, where index probing can only report an upper bound. A deterministic error decomposition (Proposition~\ref{prop:decomp}) separates geometric from within-cell error and explains where it does worse.
-    \item \textbf{A PostgreSQL integration with recall--latency results (Sections~\ref{sec:pg} and~\ref{sec:eval_pg}).} HVO runs as a \texttt{planner\_hook} for \texttt{pgvector}, sharing a native planner with our benchmark. On the same SQL queries we compare it with stock \texttt{pgvector}, its iterative scan, and Exqutor built from its released code. Stock \texttt{pgvector} and Exqutor return incomplete answers. HVO is faster and more accurate than the iterative scan, and a recall-aware variant approaches the oracle's recall.
-    \item \textbf{Robust routing with measured costs (Sections~\ref{sec:routing} and~\ref{sec:theory}).} Plan costs must be measured on the target machine, not counted: sequential scans and random graph accesses have very different costs per vector, and costing every distance evaluation equally makes routing 1.6--6.3$\times$ slower. We fit doubling (staircase) costs for adaptive graph plans and a monotone curve for ACORN. Minimax routing over the estimator's uncertainty interval has zero regret whenever the exactly costed pre-filter plan is optimal (Theorem~\ref{thm:robust}). We also bound point-routing regret (Lemma~\ref{lem:sens}, Theorem~\ref{thm:regret}), and show that a router that sees only $\sg$ can have regret $\Omega(N^{\gamma/2})$ (Proposition~\ref{prop:unbounded}).
-    \item \textbf{An evaluation in which every plan runs (Section~\ref{sec:eval}).} On four one-million-row benchmarks at $k\in\{1,10,100\}$ we execute all three plans for every test query, which gives an exact oracle. Two benchmarks are real (arXiv papers; Amazon products with predicates anchored on the query product), and two are synthetic with controlled correlation. Against the oracle we compare static plans, tuned global-selectivity routers, and the same cost model fed by histograms, exact counts, sampling, index probing and HPBS.
+    \item \textbf{Local selectivity defined by the $k$-th match, and a sketch that estimates it (Sections~\ref{sec:formulation}--\ref{sec:sketch}).} We define local selectivity as $k/h_k$, where $h_k$ is the number of tuples at least as close to $\mathbf{q}$ as its $k$-th matching tuple: exactly the horizon a post-filtering plan must cover. HPBS estimates $h_k$ from $L$ partitions of $m$ $k$-means cells, each carrying a radial distance profile, per-attribute histograms and a row-weighted bottom-$k$ sample of foreign keys. It never touches the vector index during planning, it answers in $\QHpbsPlusCalUsA$--$\QHpbsPlusCalUsB\,\mu$s, and it stays accurate on rare local matches, where index probing can only report an upper bound. A deterministic error decomposition (Proposition~\ref{prop:decomp}) explains where it does worse.
+    \item \textbf{Robust routing on measured costs, with regret guarantees (Sections~\ref{sec:routing}--\ref{sec:theory}).} Plan costs are fitted to measured latencies, as doubling (staircase) curves for the adaptive graph plans and a monotone curve for ACORN; costing every distance evaluation equally instead makes routing 1.6--6.3$\times$ slower. Minimax routing over the estimator's uncertainty interval has zero regret whenever the exactly costed pre-filter plan is optimal (Theorem~\ref{thm:robust}). We also bound point-routing regret (Lemma~\ref{lem:sens}, Theorem~\ref{thm:regret}) and show that a router that sees only $\sg$ can have regret $\Omega(N^{\gamma/2})$ (Proposition~\ref{prop:unbounded}).
+    \item \textbf{A PostgreSQL integration with recall--latency results (Sections~\ref{sec:pg} and~\ref{sec:eval_pg}).} HVO runs as a \texttt{planner\_hook} for \texttt{pgvector}, sharing a native planner with our benchmark. On the same SQL queries, stock \texttt{pgvector} and Exqutor built from its released code return incomplete answers; HVO is faster and more accurate than the iterative scan, and a recall-aware variant approaches the oracle's recall.
+    \item \textbf{An evaluation in which every plan runs, and a public benchmark (Section~\ref{sec:eval}).} On four one-million-row benchmarks at $k\in\{1,10,100\}$ we execute all three plans for every test query, which gives an exact oracle, and report 95\% bootstrap intervals for the headline comparisons. The two real benchmarks (arXiv papers; Amazon products with predicates anchored on the query product) are released with exact ground truth~\cite{hvobench}.
 \end{itemize}
 
-\emph{Scope.} We evaluate on two real and two synthetic datasets, on one machine (an Apple M4; no x86 server), with plans built on faiss~\cite{douze2024faiss} and ACORN and, separately, inside PostgreSQL. Section~\ref{sec:discussion} discusses what this does and does not establish.
-
 \section{Background and Related Work}\label{sec:related}
-\emph{Hybrid execution engines.} Relational engines with vector support include AnalyticDB-V~\cite{wei2020analyticdbv}, VBase~\cite{zhang2023vbase}, which iterates HNSW results under relaxed monotonicity until predicates are satisfied, \texttt{pgvector} with iterative index scans~\cite{pgvector2024}, and DuckDB \texttt{vss}~\cite{duckdbvss2024}. Milvus~\cite{wang2021milvus} evaluates scalar predicates into a bitset that the vector kernel consults during search. These systems choose among plans with rules or with cost models that do not see the joint distribution of predicate and query vector.
+\emph{Hybrid execution engines.} Relational engines with vector support include AnalyticDB-V~\cite{wei2020analyticdbv}, VBase~\cite{zhang2023vbase}, which iterates HNSW results under relaxed monotonicity until predicates are satisfied, \texttt{pgvector} with iterative index scans~\cite{pgvector2024}, and DuckDB \texttt{vss}~\cite{duckdbvss2024}. Milvus~\cite{wang2021milvus} evaluates scalar predicates into a bitset that the vector kernel consults during search. \emph{Limitation:} these systems choose among plans with rules or with cost models driven by global predicate selectivity, which cannot tell a predicate whose matches surround the query from one whose matches lie far away.
 
-\emph{Filtered ANN indexes.} A second line of work bakes attributes into the index. Filtered-DiskANN~\cite{gollapudi2023filtereddiskann} and NHQ~\cite{wang2022nhq} incorporate labels into graph construction; HQANN~\cite{wu2022hqann} fuses attribute and vector distances; SeRF~\cite{zuo2024serf} and its dynamic successor~\cite{peng2025drfanns} build segment graphs for one-dimensional range filters; ACORN~\cite{patel2024acorn} densifies HNSW and expands two-hop neighborhoods to stay connected under arbitrary predicates. Surveys and benchmarks~\cite{lin2025survey,iff2025benchmark,shi2025unified,amanbayev2026fanns} find that no index dominates across selectivities. Our work is complementary: whichever indexes exist, the optimizer still has to choose a plan.
+\emph{Filtered ANN indexes.} A second line of work bakes attributes into the index. Filtered-DiskANN~\cite{gollapudi2023filtereddiskann} and NHQ~\cite{wang2022nhq} incorporate labels into graph construction; HQANN~\cite{wu2022hqann} fuses attribute and vector distances; SeRF~\cite{zuo2024serf} and its dynamic successor~\cite{peng2025drfanns} build segment graphs for one-dimensional range filters; ACORN~\cite{patel2024acorn} densifies HNSW and expands two-hop neighborhoods to stay connected under arbitrary predicates. Surveys and benchmarks~\cite{lin2025survey,iff2025benchmark,shi2025unified,amanbayev2026fanns} find that no index dominates across selectivities. \emph{Limitation:} each index fixes one filtering strategy. None decides, per query, whether another available plan would be cheaper, so whichever indexes exist, the optimizer still has to choose.
 
-\emph{Cardinality estimation.} Relational estimators range from histograms and wavelets~\cite{matias1998wavelet,gunopulos2000approximating} through sketches such as HyperLogLog and $k$-minimum values~\cite{flajolet2007hll,beyer2007kmv} to learned models~\cite{kipf2019mscn,yang2020neurocard,hilprecht2020deepdb}. For similarity queries, estimators use LSH~\cite{charikar2002similarity,spring2017new} or reference objects~\cite{lan2024cardinality}. Exqutor~\cite{exqutor2026} is closest to us: it plugs vector-search cardinality estimates into a relational optimizer, using index-based techniques when an HNSW or IVF index exists and adaptive sampling otherwise. HPBS differs in three ways. It estimates the \emph{joint} quantity (matches inside a ball) from a synopsis without probing the index; it targets the $k$-th-match horizon that determines graph-plan cost; and we pair it with measured plan costs, regret analysis and a PostgreSQL integration. We compare against an Exqutor-style index probe and a sampling estimator inside our benchmark, and against Exqutor itself, built from its released code, inside PostgreSQL.
+\emph{Cardinality estimation.} Relational estimators range from histograms and wavelets~\cite{matias1998wavelet,gunopulos2000approximating} through sketches such as HyperLogLog and $k$-minimum values~\cite{flajolet2007hll,beyer2007kmv} to learned models~\cite{kipf2019mscn,yang2020neurocard,hilprecht2020deepdb}. For similarity queries, estimators use LSH~\cite{charikar2002similarity,spring2017new} or reference objects~\cite{lan2024cardinality}. Exqutor~\cite{exqutor2026} is closest to us: it plugs vector-search cardinality estimates into a relational optimizer, using index-based techniques when an HNSW or IVF index exists and adaptive sampling otherwise. \emph{Limitation:} relational estimators assume that predicates are independent of the vector; similarity estimators count matches within a fixed range rather than the $k$-th-match horizon that determines graph-plan cost; and index probing must touch the index during planning and can only bound the selectivity of rare matches.
 
-\subsection*{Notation}
-$R$ has $N$ tuples with unit-norm vectors $\mathbf{v}_i\in\mathbb{R}^d$ and attributes $\mathbf{a}_i$; a query is $(\mathbf{q},k,\mathcal{P})$, where $\mathcal{P}$ is a conjunction of range, \texttt{IN}, and semi-join predicates. $V(\mathcal{P})$ is the set of matching tuples, $\sg=|V(\mathcal{P})|/N$, and the Q-error of an estimate is $\max(\hat c/c, c/\hat c)$.
+\emph{Synthesis.} Table~\ref{tab:related} summarizes the differences. HVO differs from the closest work in three ways. It estimates the \emph{joint} quantity (matches inside a ball) from a synopsis without probing the index; it targets the $k$-th-match horizon that determines graph-plan cost; and it pairs the estimate with measured plan costs, regret analysis and a PostgreSQL integration. We compare against an Exqutor-style index probe and a sampling estimator inside our benchmark, and against Exqutor itself, built from its released code, inside PostgreSQL.
 
-\section{Problem Formulation}\label{sec:formulation}
-\begin{definition}[$k$-th-match local selectivity]\label{def:sloc}
-Order $R$ by distance to $\mathbf{q}$. Let $h_k(\mathbf{q},\mathcal{P})$ be the number of tuples whose distance to $\mathbf{q}$ is at most that of the $k$-th closest tuple in $V(\mathcal{P})$. The local selectivity is $\sloc(\mathbf{q},\mathcal{P}) = k/h_k(\mathbf{q},\mathcal{P})$.
-\end{definition}
-Equivalently, $\sloc$ is the fraction of matches inside the smallest ball around $\mathbf{q}$ that contains $k$ matches. Under independence between $\mathcal{P}$ and the vectors, $h_k \approx k/\sg$ and $\sloc\approx\sg$. An earlier version of this work measured the match fraction inside a ball of fixed size $k/\sg$. That quantity predicted graph-plan cost poorly under anti-correlation: there the $k$-th match lies far outside that ball, so the plan must search much further than the fixed ball suggests. Definition~\ref{def:sloc} measures that distance directly. We quantify correlation by the global-local selectivity coefficient~\cite{amanbayev2026fanns}
-\begin{equation}\label{eq:gls}
-\rho_{\text{GLS}} = \tanh\!\left(\tfrac{1}{2}\ln\frac{\sloc(1-\sg)}{\sg(1-\sloc)}\right)\in(-1,1),
-\end{equation}
-and call a query anti-correlated if $\rho_{\text{GLS}}<-0.3$, positively correlated if $\rho_{\text{GLS}}>0.3$, and independent otherwise.
+\begin{table*}[!t]
+\footnotesize
+\centering
+\caption{How existing approaches choose a plan for filtered top-$k$ vector search. ``Index at planning'': whether choosing the plan requires accessing the vector index.}
+\label{tab:related}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{p{0.22\textwidth}p{0.2\textwidth}p{0.22\textwidth}p{0.12\textwidth}p{0.16\textwidth}}
+\toprule
+Approach & Plan choice & Estimate driving the choice & Index at planning & Implemented in \\
+\midrule
+AnalyticDB-V~\cite{wei2020analyticdbv} & cost-based, among hybrid plans & global predicate selectivity & no & own analytical engine \\
+VBase~\cite{zhang2023vbase} & one iterative plan & -- & -- & PostgreSQL-based engine \\
+\texttt{pgvector} iterative scan~\cite{pgvector2024} & PostgreSQL cost model & planner statistics (global) & no & PostgreSQL extension \\
+Milvus~\cite{wang2021milvus} & bitset-filtered search & -- & -- & vector database \\
+Filtered indexes~\cite{gollapudi2023filtereddiskann,wang2022nhq,zuo2024serf,patel2024acorn} & none (one index) & -- & -- & libraries \\
+Exqutor~\cite{exqutor2026} & cost-based, in the optimizer & vector-search cardinality (probe or sampling) & yes, when an index exists & PostgreSQL \\
+\textbf{HVO (this work)} & minimax over an uncertainty interval & $k$-th-match local selectivity (sketch) & no & benchmark and PostgreSQL hook \\
+\bottomrule
+\end{tabular}
+\end{table*}
 
-The optimizer must choose $\hat\Pi\in\{\Ppre,\Pfus,\Ppost\}$ from estimates $(\hat s_g,\hat s_{\text{loc}})$ produced in planning time that is small relative to execution. Figure~\ref{fig:arch} shows the architecture.
+\section*{Nomenclature}\label{sec:nomenclature}
+{\footnotesize
+\noindent\begin{tabular}{@{}p{0.2\columnwidth}p{0.75\columnwidth}@{}}
+\toprule
+\multicolumn{2}{@{}l}{\emph{Data and queries}}\\
+$R$, $N$, $d$ & fact table, its number of tuples, vector dimension\\
+$\mathbf{v}_i$, $\mathbf{a}_i$ & unit-norm vector and attributes of tuple $i$\\
+$(\mathbf{q},k,\mathcal{P})$ & query vector, number of results, predicate (conjunction of range, \texttt{IN} and semi-join terms)\\
+$V(\mathcal{P})$ & set of tuples that match $\mathcal{P}$\\
+$\sg$ & global selectivity, $|V(\mathcal{P})|/N$\\
+$h_k$ & tuples at least as close to $\mathbf{q}$ as its $k$-th match (Definition~\ref{def:sloc})\\
+$\sloc$ & $k$-th-match local selectivity, $k/h_k$\\
+$\rho_{\text{GLS}}$ & global-local selectivity coefficient, Eq.~\eqref{eq:gls}\\
+Q-error & $\max(\hat c/c,\ c/\hat c)$ for an estimate $\hat c$ of $c$\\
+\midrule
+\multicolumn{2}{@{}l}{\emph{Sketch (HPBS)}}\\
+$L$, $m$, $B$ & partitions, cells per partition, histogram bins per attribute\\
+$\mathbf{c}_b$, $N_b$ & centroid and size of cell $b$\\
+$\rho_{b,j}$ & $j$-th of 16 quantiles of squared member-to-centroid distances\\
+$\delta_b$ & squared distance $\|\mathbf{q}-\mathbf{c}_b\|^2$\\
+$\hat n_b(r)$, $\hat\sigma_b$ & estimated tuples of cell $b$ in the ball of squared radius $r$; estimated matching fraction of cell $b$\\
+$k_{\text{kmv}}$, $\mathcal{K}_b$, $\mathcal{V}$ & bottom-$k$ size, key sample of cell $b$, valid dimension keys\\
+$f_\Theta$ & residual calibrator (MLP)\\
+\midrule
+\multicolumn{2}{@{}l}{\emph{Plans, costs and routing}}\\
+$\Ppre$, $\Pfus$, $\Ppost$ & pre-filter, fused (ACORN-1) and post-filter plans\\
+$C(\Pi)$, $C_{\text{rel}}$ & plan cost; cost of columnar predicate evaluation\\
+$c_{\text{scan}}$, $a_0$ & cost per scanned vector; fixed pre-filter cost\\
+$\operatorname{St}(\nu;b_0,b_1,\gamma)$ & staircase cost of a doubling plan with need $\nu$, Eq.~\eqref{eq:stair}\\
+$c_f$, $\beta_f$ & need multiplier and exponent of the fused plan\\
+$\eta$ & width of the uncertainty interval $[\hat s/\eta,\hat s\eta]$\\
+$\Lambda$ & cost sensitivity factor (Lemma~\ref{lem:sens})\\
+$\mathcal{R}$ & regret, $C(\hat\Pi)/C(\Pi^*)$\\
+$\sg^*$ & pre-filter boundary (Theorem~\ref{thm:crossover})\\
+\midrule
+\multicolumn{2}{@{}l}{\emph{Acronyms and units}}\\
+HVO, HPBS & HyperVector-Optimizer; Polytope-Ball Sketch\\
+ANN, HNSW & approximate nearest neighbor; hierarchical navigable small world graph\\
+AVI, KMV, FK & attribute-value independence; $k$-minimum values; foreign key\\
+CM, CI & cost model; confidence interval (95\%, percentile bootstrap)\\
+ms, $\mu$s, MiB & milliseconds, microseconds, mebibytes\\
+\bottomrule
+\end{tabular}}
+
+\section{Proposed Methodology}\label{sec:method}
+\subsection{System Overview}\label{sec:overview}
+Figure~\ref{fig:arch} shows HVO's architecture. A filtered top-$k$ query is processed in four steps. (1) The predicate encoder turns $\mathcal{P}$ into histogram bin offsets, \texttt{IN} masks and the set of valid dimension keys. (2) HPBS (Section~\ref{sec:sketch}) combines the encoded predicate with the query vector and returns estimates $\hat s_g$ and $\hat s_{\text{loc}}$, which a small calibrator corrects. (3) The router (Section~\ref{sec:route}) evaluates a cost model fitted to measured plan latencies (Section~\ref{sec:routing}) at both ends of the estimator's uncertainty interval, optionally excludes graph plans whose predicted recall is too low, and picks the plan with the smallest worst-case cost. (4) The chosen plan runs; every plan adapts its budget until it has found $k$ matches. Planning reads only the sketch, never the vector index. Everything fitted---cost constants, calibrator weights, the interval width $\eta$ and the recall model---is fitted offline on training queries. The same native planner serves the benchmark and the PostgreSQL extension (Section~\ref{sec:pg}).
+
 
 \begin{figure*}[!t]
 \centering
@@ -139,10 +197,22 @@ The optimizer must choose $\hat\Pi\in\{\Ppre,\Pfus,\Ppost\}$ from estimates $(\h
 \label{fig:arch}
 \end{figure*}
 
-\section{The Polytope-Ball Sketch}\label{sec:sketch}
+\subsection{Problem Formulation}\label{sec:formulation}
+\begin{definition}[$k$-th-match local selectivity]\label{def:sloc}
+Order $R$ by distance to $\mathbf{q}$. Let $h_k(\mathbf{q},\mathcal{P})$ be the number of tuples whose distance to $\mathbf{q}$ is at most that of the $k$-th closest tuple in $V(\mathcal{P})$. The local selectivity is $\sloc(\mathbf{q},\mathcal{P}) = k/h_k(\mathbf{q},\mathcal{P})$.
+\end{definition}
+Equivalently, $\sloc$ is the fraction of matches inside the smallest ball around $\mathbf{q}$ that contains $k$ matches. Under independence between $\mathcal{P}$ and the vectors, $h_k \approx k/\sg$ and $\sloc\approx\sg$. An earlier version of this work measured the match fraction inside a ball of fixed size $k/\sg$. That quantity predicted graph-plan cost poorly under anti-correlation: there the $k$-th match lies far outside that ball, so the plan must search much further than the fixed ball suggests. Definition~\ref{def:sloc} measures that distance directly. We quantify correlation by the global-local selectivity coefficient~\cite{amanbayev2026fanns}
+\begin{equation}\label{eq:gls}
+\rho_{\text{GLS}} = \tanh\!\left(\tfrac{1}{2}\ln\frac{\sloc(1-\sg)}{\sg(1-\sloc)}\right)\in(-1,1),
+\end{equation}
+and call a query anti-correlated if $\rho_{\text{GLS}}<-0.3$, positively correlated if $\rho_{\text{GLS}}>0.3$, and independent otherwise.
+
+The optimizer must choose $\hat\Pi\in\{\Ppre,\Pfus,\Ppost\}$ from estimates $(\hat s_g,\hat s_{\text{loc}})$ produced in planning time that is small relative to execution.
+
+\subsection{The Polytope-Ball Sketch}\label{sec:sketch}
 HPBS answers the question \emph{``how many tuples lie in the ball around $\mathbf{q}$ that holds $k$ matches of $\mathcal{P}$?''} The ball is a region in $\mathbb{R}^d$; the predicate is an axis-aligned polytope in attribute space joined through foreign keys. Space-partitioning trees degrade to scans for $d\gtrsim 30$, and the predicate is not known until query time, so we summarize both sides per cell of a coarse vector partition.
 
-\subsection{Structure}
+\subsubsection{Structure}
 \emph{Partitions.} We build $L$ independent $k$-means partitions with $m$ cells each, trained on a $2\times10^5$-vector sample with different seeds. For cell $b$ we keep its centroid $\mathbf{c}_b$, its size $N_b$, and a \emph{radial profile}: the $16$ quantiles $\{\rho_{b,j}\}$ of the squared member-to-centroid distances $\|\mathbf{x}-\mathbf{c}_b\|^2$.
 
 \emph{Attribute histograms.} For each numeric attribute we fix $B=32$ global equi-depth bins and store, per cell, the cumulative fraction of the cell's tuples below each bin edge (FP16). For integer-valued attributes (years, counts) the edges are moved to half-integers and an inclusive range $[l,u]$ is read as $[\lceil l\rceil-\tfrac12,\lfloor u\rfloor+\tfrac12]$. Without this, tied values make equi-depth edges collapse; a first run on real data produced P99 Q-errors above $10^4$ for exactly this reason. For each categorical attribute we store per-cell value fractions. A range predicate is answered by linear interpolation inside its two boundary bins; an \texttt{IN} list sums the selected fractions.
@@ -157,7 +227,7 @@ a ratio estimator over a uniform hash-sample of the cell's distinct keys that we
 
 \emph{Why $k$-means and not random projections.} Our original design used structured cross-polytope LSH cells ($2d_{\text{proj}}$ cones $\times$ $8$ radial shells). Its cells follow random directions rather than the data, so a cell mixes unrelated neighborhoods. In our experiments it is the least accurate variant (P99 Q-error $\QHpbsCpPnnA$ against $\QHpbsPnnA$ for $k$-means cells at $L=4$; Table~\ref{tab:cardinality}).
 
-\subsection{Estimation}
+\subsubsection{Estimation}
 Let $\delta_b=\|\mathbf{q}-\mathbf{c}_b\|^2$. For high-dimensional data the offset of a member from its centroid is nearly orthogonal to $\mathbf{q}-\mathbf{c}_b$, so $\|\mathbf{q}-\mathbf{x}\|^2\approx\delta_b+\|\mathbf{x}-\mathbf{c}_b\|^2$. The estimated number of the cell's tuples inside the ball of squared radius $r$ is therefore
 \begin{equation}\label{eq:ballcount}
 \hat n_b(r) = \frac{N_b}{16}\,\big|\{j : \delta_b + \rho_{b,j} \le r\}\big|.
@@ -166,7 +236,7 @@ The estimated matches inside the ball are $\hat M(r)=\sum_b \hat n_b(r)\hat\sigm
 \begin{equation}\label{eq:sloc_hat}
 \hat s^{(\ell)}_{\text{loc}} = \min\!\Big(1,\ \frac{k}{\sum_b \hat n_b(\hat r)}\Big), \qquad \hat s_g^{(\ell)} = \frac{1}{N}\sum_b N_b\hat\sigma_b .
 \end{equation}
-The sketch returns the median over the $L$ partitions. Algorithm~\ref{alg:hpbs} gives the procedure. Each partition costs one $m\times d$ matrix-vector product (Accelerate \texttt{sgemv}), $m$ cell-fraction evaluations, and a bisection whose candidate set shrinks as the upper radius falls, giving $\mathcal{O}(L(md + m|\mathcal{P}| + m\log(1/\epsilon)))$ time.
+The sketch returns the median over the $L$ partitions. Algorithm~1 gives the procedure. Each partition costs one $m\times d$ matrix-vector product (Accelerate \texttt{sgemv}), $m$ cell-fraction evaluations, and a bisection whose candidate set shrinks as the upper radius falls, giving $\mathcal{O}(L(md + m|\mathcal{P}| + m\log(1/\epsilon)))$ time.
 
 \begin{table}[!t]
 \footnotesize
@@ -186,10 +256,10 @@ The sketch returns the median over the $L$ partitions. Algorithm~\ref{alg:hpbs} 
 \end{tabular}
 \end{table}
 
-\subsection{Residual calibrator}
+\subsubsection{Residual calibrator}
 The raw estimate is biased where the orthogonality approximation in Eq.~\eqref{eq:ballcount} is poor (the query lies close to a centroid) and where within-cell independence fails. A two-layer MLP $f_\Theta:\mathbb{R}^{12}\to\mathbb{R}$ with 16 ReLU units per layer ($\CalParamsA$ parameters) predicts the log-residual, and $\hat s_{\text{loc}}\leftarrow\operatorname{clip}(\hat s^{\text{raw}}_{\text{loc}}e^{f_\Theta(\mathbf{z})},k/N,1)$. The twelve features are: $\ln\hat s_g$; $\ln\hat s^{\text{raw}}_{\text{loc}}$; the variance and the range of $\ln\hat s^{(\ell)}_{\text{loc}}$ across partitions; the number of predicate terms; a join indicator; the number of range terms; the number of \texttt{IN} terms; the log of the mean number of active cells; the mean and the standard deviation across partitions of the bisection radius $\hat r$; and $\ln\hat s^{\text{raw}}_{\text{loc}}-\ln\hat s_g$. It is trained on the training split only, with squared log-error, $L_2$ penalty $10^{-3}$ and early stopping. Its forward pass takes about $\CalUsA\,\mu$s in NumPy.
 
-\subsection{Error decomposition}\label{sec:errdecomp}
+\subsubsection{Error decomposition}\label{sec:errdecomp}
 Let $n_b(r)$ and $M_b(r)$ be the true numbers of tuples and of matches of cell $b$ inside the ball of squared radius $r$, and $\sigma_b(r)=M_b(r)/n_b(r)$. Write $h(j)$ for the number of tuples within the distance of the $j$-th closest match, so $h_k=h(k)$.
 \begin{proposition}[Deterministic error decomposition]\label{prop:decomp}
 Suppose that for every $r$ and $b$ the geometric and cell estimates satisfy
@@ -216,8 +286,8 @@ n(\hat r)\in\big[h(\lfloor k/(\alpha\beta)\rfloor),\ h(\lceil\alpha\beta k\rceil
 
 \emph{Space and maintenance.} HPBS stores $Lm(d+16)$ floats for centroids and profiles, $Lm\sum_j B_j$ FP16 histogram entries, and $Lm k_{\text{kmv}}$ key--count pairs, independent of $N$ apart from the choice of $m$. With $L=4$, $m=1024$ it takes $\QHpbsMBA$, $\QHpbsMBC$ and $\QHpbsMBB$\,MiB for 128-, 384- and 768-d vectors ($\SketchPctA\%$, $\SketchPctC\%$ and $\SketchPctB\%$ of the raw vectors), dominated by the centroids. It is built in $\BuildHpbsA$--$\BuildHpbsB$\,s, against $\BuildHnswA$--$\BuildHnswB$\,s for the HNSW index on 10 threads. Insertions update one cell per partition (counts, histogram entries, and a bottom-$k$ insertion). Deletions can be handled by decrementing counts and dropping key entries, with lazy cell rebuilds. We have not evaluated maintenance under updates.
 
-\section{Plans, Measured Costs and Routing}\label{sec:routing}
-\subsection{Plans}
+\subsection{Plans and Measured Cost Model}\label{sec:routing}
+\subsubsection{Plans}
 Graph plans run on a faiss~\cite{douze2024faiss} \texttt{IndexHNSWFlat} graph (inner product, $M=32$, $ef_{\text{construction}}=200$) or on ACORN's own graph; every plan runs single-threaded.
 \begin{itemize}
     \item $\Ppre$ evaluates $\mathcal{P}$ column-wise over all $N$ rows (NumPy), takes the sorted id list, and runs a C top-$k$ scan over the listed rows. The scan prefetches whole rows ahead and comes in three kernels: scalar FP32 (auto-vectorization disabled), NEON FP32 ($4\times4$ FMA accumulators), and NEON INT8 (\texttt{SDOT} on symmetric int8 codes for the top $4k$, followed by an exact FP32 rerank).
@@ -226,7 +296,7 @@ Graph plans run on a faiss~\cite{douze2024faiss} \texttt{IndexHNSWFlat} graph (i
 \end{itemize}
 Because the plans adapt their budgets, a plan's latency does not depend on the optimizer's estimate; the optimizer only chooses which plan runs. This makes the oracle well defined. A first generation of graph plans used in an earlier version of this work restarted a faiss search with a doubled budget and used faiss's bitmap-filtered HNSW as the fused plan. Table~\ref{tab:impl} compares the two generations; all other results use the second.
 
-\subsection{Cost model}
+\subsubsection{Cost model}
 \emph{Staircase plans.} A graph plan whose rounds have budgets $e_i=e_0 2^i$ and which stops once the budget reaches a need $\nu$ runs $j(\nu)=\lceil\log_2(\nu/e_0)\rceil^+$ rounds, capped at the budget limit. If a round of budget $e$ costs $b_0+b_1e^\gamma$, the plan costs
 \begin{equation}\label{eq:stair}
 \operatorname{St}(\nu;b_0,b_1,\gamma)=\sum_{i=0}^{j(\nu)}\big(b_0+b_1(e_02^i)^\gamma\big).
@@ -243,7 +313,7 @@ where $\operatorname{St}^{+1}$ adds the confirmation round. The need of $\Ppost$
 
 \emph{Counted-cost ablation.} To show that costs must be measured rather than counted, we also fit the same staircases to \emph{distance-evaluation counts} instead of time, so that a sequential and a random distance computation cost the same, as in cost models that count distance evaluations.
 
-\subsection{Phase boundary}
+\subsubsection{Phase boundary}
 \begin{theorem}[Pre-filter boundary]\label{thm:crossover}
 Let $C_G(\sloc)$ denote the cost of the cheaper graph plan, $\min(C(\Pfus),C(\Ppost))$. Under the cost model of Eqs.~\eqref{eq:cost_pre} to~\eqref{eq:cost_fused}, the pre-filter plan is optimal if and only if
 \[
@@ -282,7 +352,7 @@ Theorem~\ref{thm:crossover} has a consequence that matters in practice. When pre
 \label{fig:phase}
 \end{figure}
 
-\subsection{Routing}
+\subsection{Robust Routing}\label{sec:route}
 \emph{Point routing} picks $\arg\min_\Pi C(\Pi;\hat s_g,\hat s_{\text{loc}})$. \emph{Minimax routing} uses an interval $I=[\hat s_{\text{loc}}/\eta,\ \hat s_{\text{loc}}\eta]$ and picks
 \begin{equation}\label{eq:robust}
 \begin{aligned}
@@ -294,21 +364,31 @@ since every plan cost is monotone in $\sloc$. We set $\eta$ to the $0.9$-quantil
 
 \emph{Recall-aware routing.} Graph plans are approximate. For each graph plan we fit a logistic model of $\Pr[\text{Recall@}k\ge0.9]$ on the training split, using features available at planning time ($\ln\hat s_{\text{loc}}$, $\ln\hat s_g$, the number of terms, a join indicator). The recall-aware router admits a graph plan only if this probability is at least $0.9$; otherwise it falls back to the exact pre-filter plan. This trades latency for recall, and we report both variants.
 
-\emph{Native planner.} The whole decision runs in one C call, \texttt{hvo\_plan}, shared by the benchmark and the PostgreSQL extension: sketch estimate, calibrator forward pass, recall check and minimax costing. The call takes the encoded predicate and the query vector and returns the plan.
+\emph{Native planner.} The whole decision (Algorithm~2) runs in one C call, \texttt{hvo\_plan}, shared by the benchmark and the PostgreSQL extension: sketch estimate, calibrator forward pass, recall check and minimax costing. The call takes the encoded predicate and the query vector and returns the plan.
 
 \emph{Runtime guard.} We also evaluated an early-exit rule that aborts $\Ppost$ after its first round if the observed match rate is below half the estimate and the cost model predicts $\Ppre$ to be cheaper than the remaining rounds. It is replayed exactly from the recorded per-round timings.
 
-\subsection{Integration into PostgreSQL}\label{sec:pg}
-We implemented HVO as a PostgreSQL~16 extension (\texttt{hvo\_pg}) for \texttt{pgvector}~0.8.7, using \texttt{planner\_hook}. For a query of the form of Eq.~\eqref{eq:sql_example} with \texttt{ORDER BY embedding <\#> $\mathbf{q}$ LIMIT $k$}, the hook does the following:
-\begin{itemize}
-    \item It reads $\mathbf{q}$ and $k$ from the parse tree, together with range, equality and \texttt{IN} predicates on the fact table and the semi-join \texttt{fk IN (SELECT id FROM dims WHERE \ldots)}. Casts and constant expressions are folded.
-    \item It encodes the predicate against the sketch and evaluates the dimension predicate on an in-memory copy of the dimension columns.
-    \item It calls \texttt{hvo\_plan} and steers the standard planner with plan-type settings for the duration of planning, as \texttt{pg\_hint\_plan} does: turning \texttt{enable\_indexscan} off for the pre-filter plan, and turning \texttt{enable\_seqscan} and \texttt{enable\_bitmapscan} off for \texttt{pgvector}'s iterative HNSW scan.
-\end{itemize}
-\texttt{pgvector} has no in-traversal filtering, so routing is two-way. The model file holds the sketch, the calibrator, the interval width and a cost and recall model. Both models are fitted to PostgreSQL's own execution times and recall on the training queries, using forced pre-filter and forced iterative-scan runs. The hook is about 660 lines of C plus the shared planner code.
 
-\section{Regret Analysis}\label{sec:theory}
-Regret is $\mathcal{R}=C(\hat\Pi;s)/C(\Pi^*;s)$, where $\Pi^*$ minimizes cost at the true selectivities $s=(\sg,\sloc)$. The results below concern the cost model of Section~\ref{sec:routing}. Measured regret differs from model regret by the model's calibration error, which we report in Section~\ref{sec:eval}. All statements hold per query, given that query's estimation error.
+\begin{table}[!t]
+\footnotesize
+\centering
+\caption{Algorithm 2: HVO planning for one query (the native \texttt{hvo\_plan} call).}
+\label{alg:hvo}
+\begin{tabular}{p{0.95\columnwidth}}
+\toprule
+\textbf{Input:} $\mathbf{q}$, $k$, $\mathcal{P}$; sketch; calibrator $f_\Theta$; cost model $C(\cdot)$ with plans $\{\Ppre,\Pfus,\Ppost\}$; interval width $\eta$; recall model $\hat p_\Pi$ and threshold $\tau$ (recall-aware variant only).\\
+1: $(\hat s_g,\hat s^{\text{raw}}_{\text{loc}},\mathbf{z})\leftarrow$ median over the $L$ partitions of Algorithm~1; $\mathbf{z}$ holds the 12 calibrator features.\\
+2: $\hat s_{\text{loc}}\leftarrow\operatorname{clip}(\hat s^{\text{raw}}_{\text{loc}}\,e^{f_\Theta(\mathbf{z})},\,k/N,\,1)$.\\
+3: \textbf{for} each plan $\Pi$: $\bar C(\Pi)\leftarrow\max\big(C(\Pi;\hat s_g,\hat s_{\text{loc}}/\eta),\,C(\Pi;\hat s_g,\hat s_{\text{loc}}\eta)\big)$ \hfill $\triangleright$ Eq.~\eqref{eq:robust}\\
+4: \textbf{if} recall-aware: \textbf{for} each graph plan $\Pi$ with $\hat p_\Pi(\hat s_g,\hat s_{\text{loc}},\mathcal{P})<\tau$: $\bar C(\Pi)\leftarrow\infty$.\\
+5: \textbf{return} $\hat\Pi\leftarrow\arg\min_\Pi\bar C(\Pi)$ \hfill $\triangleright$ point routing: $\eta=1$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsection{Regret Analysis}\label{sec:theory}
+Regret is $\mathcal{R}=C(\hat\Pi;s)/C(\Pi^*;s)$, where $\Pi^*$ minimizes cost at the true selectivities $s=(\sg,\sloc)$. The results below concern the cost model of Section~\ref{sec:routing} and the routers of Section~\ref{sec:route}. Measured regret differs from model regret by the model's calibration error, which we report in Section~\ref{sec:eval}. All statements hold per query, given that query's estimation error.
 
 \begin{lemma}[Sensitivity of staircase plans]\label{lem:sens}
 Let a plan's cost be $A+\operatorname{St}(c\,(k/s)^\beta;b_0,b_1,\gamma)$ with $A,b_0,b_1\ge0$ and $\gamma>0$. If $\hat s/s\in[1/\eta,\eta]$, then its cost at $\hat s$ is within a factor $\Lambda_{\beta,\gamma}(\eta)$ of its cost at $s$, where
@@ -350,11 +430,34 @@ Fix $s^*=\sqrt{bN^\gamma C_1/c'}/N\ge k/N$. Matching tuples can be placed around
 \end{proof}
 With columnar predicate evaluation, $C(\Ppre)\ge c_1N$ for every $\sg$. The same argument then gives regret $\Omega(\min(N, N^{\gamma-1}))$. This is a constant set by the ratio of random-access to per-row predicate cost when $\gamma\le1$, and it still grows with $N$ for the superlinear $\gamma$ we measure. HVO's bounds, by contrast, depend only on the estimation error. This contrast is why we measure the estimator's tail and not only its median.
 
-\section{Experimental Evaluation}\label{sec:eval}
-We ask four questions. How accurate and how fast is HPBS, compared with histogram, exact-count, sampling and index-probing estimators (Section~\ref{sec:eval_card})? Does better estimation translate into lower end-to-end latency (Section~\ref{sec:eval_e2e})? How do the scan kernel and each component matter (Section~\ref{sec:eval_hw})? And how does measured regret compare with the bounds (Section~\ref{sec:eval_regret})?
+\subsection{Integration into PostgreSQL}\label{sec:pg}
+We implemented HVO as a PostgreSQL~16 extension (\texttt{hvo\_pg}) for \texttt{pgvector}~0.8.7, using \texttt{planner\_hook}. For a query of the form of Eq.~\eqref{eq:sql_example} with \texttt{ORDER BY embedding <\#> $\mathbf{q}$ LIMIT $k$}, the hook does the following:
+\begin{itemize}
+    \item It reads $\mathbf{q}$ and $k$ from the parse tree, together with range, equality and \texttt{IN} predicates on the fact table and the semi-join \texttt{fk IN (SELECT id FROM dims WHERE \ldots)}. Casts and constant expressions are folded.
+    \item It encodes the predicate against the sketch and evaluates the dimension predicate on an in-memory copy of the dimension columns.
+    \item It calls \texttt{hvo\_plan} and steers the standard planner with plan-type settings for the duration of planning, as \texttt{pg\_hint\_plan} does: turning \texttt{enable\_indexscan} off for the pre-filter plan, and turning \texttt{enable\_seqscan} and \texttt{enable\_bitmapscan} off for \texttt{pgvector}'s iterative HNSW scan.
+\end{itemize}
+\texttt{pgvector} has no in-traversal filtering, so routing is two-way. The model file holds the sketch, the calibrator, the interval width and a cost and recall model. Both models are fitted to PostgreSQL's own execution times and recall on the training queries, using forced pre-filter and forced iterative-scan runs. The hook is about 660 lines of C plus the shared planner code.
+
+
+\subsection{Assumptions and Implementation}\label{sec:assume}
+The method rests on the following assumptions, each of which the evaluation tests or the discussion revisits.
+\begin{itemize}
+    \item Vectors are unit-norm and similarity is the inner product (equivalently cosine), as in all four datasets.
+    \item Within a sketch cell, predicate terms are independent of one another and of a tuple's position in the cell (Section~\ref{sec:sketch}). Correlation \emph{across} cells is captured; the within-cell residual is the error term $\beta$ of Proposition~\ref{prop:decomp}.
+    \item Every plan adapts its budget until it has found $k$ matches, so a plan's latency does not depend on the estimate. This makes the oracle well defined.
+    \item Plan costs are monotone in $\sloc$, which Eq.~\eqref{eq:robust} and Theorems~\ref{thm:regret} and~\ref{thm:robust} require.
+    \item Cost constants, the calibrator, $\eta$, the recall model and the thresholds of the global routers are fitted on the training split only, separately for each machine, scan kernel and plan set.
+\end{itemize}
+\emph{Implementation.} The scan kernels, the resumable HNSW scan and the planner (HPBS estimation, calibrator, recall check and minimax costing) are written in C and called from Python through \texttt{ctypes}. ACORN is linked through a small C wrapper, and the PostgreSQL extension shares the planner source. The experiment drivers, estimator baselines and analysis are Python. Algorithms~1 and~2 and the parameter values in Table~\ref{tab:params} are sufficient to reproduce the method; the released code reproduces every number in Section~\ref{sec:eval}.
+
+
+\section{Simulation and Result Discussion}\label{sec:eval}
+We ask four questions. How accurate and how fast is HPBS, compared with histogram, exact-count, sampling and index-probing estimators (Section~\ref{sec:eval_card})? Does better estimation translate into lower end-to-end latency (Section~\ref{sec:eval_e2e})? How do the scan kernel and each component matter (Section~\ref{sec:eval_hw})? And how does measured regret compare with the bounds (Section~\ref{sec:eval_regret})? Section~\ref{sec:discussion} discusses limitations. The evaluation is an empirical simulation of query execution: every plan is executed for every test query on real hardware, so the oracle is measured, not modeled.
 
 \subsection{Setup}\label{sec:setup}
-\emph{Hardware and software.} Apple M4 (4 performance and 6 efficiency cores, 16\,GB unified memory), macOS, Python~3.14, NumPy (Accelerate BLAS), faiss-cpu~1.13.2, Apple clang with \texttt{-O3 -mcpu=native}. All latencies are measured on one thread (OpenMP and Accelerate both limited to one thread). Each plan is run once as a warm-up and then twice; we report the slower of the two timed runs. We discarded two runs. A first run of the 768-d benchmark swapped, because two copies of the vectors (table and index) exceeded memory. Another run overlapped an unrelated job on the machine. In the reported runs the table aliases the index's vector storage, no other heavy job ran, and we logged swap activity every minute. The remaining swap-ins came from other processes paging in, and the timed process stayed CPU-bound. PostgreSQL~16.14 with \texttt{pgvector}~0.8.7 runs on the same machine with \texttt{shared\_buffers}=4\,GB, parallel query and JIT disabled, and \texttt{pgvector}'s default HNSW parameters ($m=16$, $ef_{\text{construction}}=64$). PostgreSQL latencies are client wall-clock times and therefore include planning.
+\emph{Environment.} Apple M4 (4 performance and 6 efficiency cores, 16\,GB unified memory), macOS~26.3; Python~3.14.3 with NumPy~2.4.3 (Accelerate BLAS), SciPy~1.17.1 and scikit-learn~1.8.0 (calibrator and recall model); faiss-cpu~1.13.2; sentence-transformers~5.5.1 on PyTorch~2.12.0 for the embeddings; Apple clang~17.0.0 with \texttt{-O3 -mcpu=native} for the C code; PostgreSQL~16.14 with \texttt{pgvector}~0.8.7. All latencies are measured on one thread (OpenMP and Accelerate both limited to one thread). Each plan is run once as a warm-up and then twice; we report the slower of the two timed runs. We discarded two runs. A first run of the 768-d benchmark swapped, because two copies of the vectors (table and index) exceeded memory. Another run overlapped an unrelated job on the machine. In the reported runs the table aliases the index's vector storage, no other heavy job ran, and we logged swap activity every minute. The remaining swap-ins came from other processes paging in, and the timed process stayed CPU-bound. PostgreSQL runs on the same machine with \texttt{shared\_buffers}=4\,GB, parallel query and JIT disabled, and \texttt{pgvector}'s default HNSW parameters ($m=16$, $ef_{\text{construction}}=64$). PostgreSQL latencies are client wall-clock times and therefore include planning.
+
 
 \emph{Synthetic data.} Each synthetic benchmark has $N=10^6$ unit-norm vectors from a two-level mixture (64 topics $\times$ 16 subtopics with Zipfian popularity) in $d=128$ (SYN-128) or $d=768$ (SYN-768). Attributes are generated from the latent topic with graded correlation. \texttt{category} (32 values) equals the topic's value with probability $0.7$; \texttt{lang} (12 values) follows the subtopic with probability $0.5$; \texttt{year} has a topic-specific mean plus Gaussian noise; \texttt{rating} has a weak subtopic effect; \texttt{price} (log-normal) and \texttt{views} (Pareto) are independent of the vectors. A foreign key references a 20{,}000-row seller table with \texttt{region} (10 values) and \texttt{tier} (4 values). For $60\%$ of rows the seller is drawn, with Zipfian popularity, from the topic's preferred region.
 
@@ -390,6 +493,37 @@ Each is fed to the same cost model, with point and with minimax routing. The rou
 Exqutor's estimator only activates for vector \emph{range} predicates in queries over more than two tables, so on these top-$k$ queries it plans exactly like \texttt{pgvector}~0.7.1. We include it because the comparison was requested, not because it targets this workload. We do not compare against Milvus or DuckDB as systems.
 
 \emph{Metrics.} The oracle runs all three plans and picks the fastest with Recall@$k\ge0.9$; in PostgreSQL it takes the faster of the two forced plans that meets the target; the other routers are charged their plan's latency plus their planning time. Measured regret is the ratio of a router's latency to the oracle's. Plan accuracy is agreement with the oracle's choice, which penalizes near-ties, so we emphasize latency and regret.
+
+\emph{Parameters, seeds and runs.} Table~\ref{tab:params} lists every parameter. The four benchmarks use seeds 11, 22, 33 and 44 (SYN-128, SYN-768, ARXIV-384, AMAZON-384); training and test predicates are drawn with that seed plus 1000 and plus 2000 (AMAZON-384's anchored predicates are drawn during data preparation with its seed), partition $\ell$ of the sketch uses seed $100\cdot\text{seed}+\ell$, and the calibrator uses \texttt{random\_state}=0. The whole pipeline (data, sketches, ground truth, plan runs, analysis) was run once per benchmark and per $k$. The experimental unit is the query: every test query is executed with every plan, giving 1{,}455--1{,}500 paired observations per benchmark.
+
+\emph{Statistical analysis.} We report 95\% percentile-bootstrap confidence intervals with 2000 resamples of test queries (fixed seed). For a difference between two routers we resample queries \emph{paired}, so both routers are evaluated on the same resampled queries, and report the interval of the relative gain $1-\overline{\text{lat}}_{\text{HVO}}/\overline{\text{lat}}_{\text{global}}$. The intervals capture query-sampling variability. They do not capture run-to-run timing noise, which we did not replicate. Re-running the analysis, which re-measures planning time, moved mean latencies by at most 0.003\,ms. We make no claim of significance beyond these intervals and perform no multiple-comparison correction.
+
+\begin{table}[!t]
+\footnotesize
+\centering
+\caption{Parameters used in all experiments.}
+\label{tab:params}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}p{0.33\columnwidth}p{0.62\columnwidth}@{}}
+\toprule
+Component & Setting \\
+\midrule
+HPBS & $L=4$ partitions, $m=1024$ $k$-means cells (12 iterations on $2\times10^5$ vectors), 16 radial quantiles, $B=32$ bins per numeric attribute, $k_{\text{kmv}}=64$, 26 bisection steps \\
+Calibrator & MLP $12\to16\to16\to1$ (497 parameters), ReLU, $L_2$ $10^{-3}$, early stopping on 15\% of training queries \\
+HNSW (faiss) & $M=32$, $ef_{\text{construction}}=200$, inner product \\
+$\Ppost$ & resumable scan, window $ef=\max(64,k)$, batches $k,k,2k,4k,\ldots$, budget $2^{17}$ \\
+$\Pfus$ (ACORN-1) & $M=32$, $M_\beta=64$, $\gamma=1$, $ef$ doubled from 64 until stable \\
+$\Ppre$ & scalar FP32, NEON FP32, NEON INT8 (top $4k$ reranked in FP32) \\
+Baselines & 100 equi-depth bins + MCV list; 1\% uniform sample; HNSW probe of 256 neighbors ($ef=256$) \\
+Routing & $\eta$ = 0.9-quantile of training Q-error; recall threshold $\tau=0.9$ on $\Pr[\text{Recall@}k\ge0.9]$ \\
+Workload & 1000 training and 1500 test queries, 1--3 predicate terms, $k\in\{1,10,100\}$ \\
+Oracle & fastest plan with Recall@$k\ge0.9$ \\
+PostgreSQL & \texttt{shared\_buffers}=4\,GB; \texttt{pgvector} $m=16$, $ef_{\text{construction}}=64$, iterative scan \texttt{strict\_order} \\
+Statistics & paired percentile bootstrap, 2000 resamples, 95\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 
 \begin{table*}[!t]
 \footnotesize
@@ -522,13 +656,15 @@ Configuration & Mean & P50 & P99 & Recall & Low (\%) & Mean & P50 & P99 & Recall
 \end{table*}
 
 \subsection{End-to-end routing}\label{sec:eval_e2e}
-Tables~\ref{tab:e2e} and~\ref{tab:e2e_syn} report latency, recall and regret for every router at $k=10$; Figure~\ref{fig:card}(c) shows where the plans cross on SYN-128.
+Tables~\ref{tab:e2e} and~\ref{tab:e2e_syn} report latency, recall and regret for every router at $k=10$. Figure~\ref{fig:cdf} shows the full latency distributions on the real data, Figure~\ref{fig:split} which plans each router chooses, and Figure~\ref{fig:card}(c) where the plans cross on SYN-128.
 
 \emph{No static plan is acceptable.} Pre-filtering always pays the full predicate scan (mean $\RAlwaysPreMeanC$\,ms on ARXIV-384). The resumable post-filter is the best plan for most queries, but rare local matches push its P99 to $\RAlwaysPostPnnC$\,ms. ACORN-1 is rarely fastest and loses recall at low local selectivity (mean recall $\RAlwaysFusedRecA$ when used for every SYN-128 query).
 
-\emph{On real data HVO lowers both mean and tail latency.} On ARXIV-384, HVO averages $\RHvoMeanC$\,ms, against $\RGlobalTwoWayMeanC$\,ms for the best tuned global-selectivity router ($\MeanGainVsGlobalC\%$ lower), and its P99 latency is $\RHvoPnnC$\,ms against $\RGlobalTwoWayPnnC$\,ms. On AMAZON-384 the gains are $\MeanGainVsGlobalD\%$ in mean ($\RHvoMeanD$ vs.\ $\RGlobalTwoWayMeanD$\,ms) and P99 $\RHvoPnnD$ vs.\ $\RGlobalTwoWayPnnD$\,ms. Recall is the same as the global router's ($\RHvoRecC$ vs.\ $\RGlobalTwoWayRecC$ on ARXIV-384), and HVO is close to the cost model fed true selectivities ($\RCboTrueMeanC$ and $\RCboTrueMeanD$\,ms). The oracle's mean ($\ROracleMeanC$ and $\ROracleMeanD$\,ms) is sometimes \emph{above} HVO's, because it only accepts plans with Recall@10 $\ge0.9$.
+\emph{On real data HVO lowers tail latency, and on ARXIV-384 also mean latency.} On ARXIV-384, HVO averages $\RHvoMeanC$\,ms, against $\RGlobalTwoWayMeanC$\,ms for the best tuned global-selectivity router ($\MeanGainVsGlobalC\%$ lower; paired 95\% interval $\GainLoHvoC$--$\GainHiHvoC\%$), and its P99 latency is $\RHvoPnnC$\,ms against $\RGlobalTwoWayPnnC$\,ms. On AMAZON-384 the mean is $\MeanGainVsGlobalD\%$ lower ($\RHvoMeanD$ vs.\ $\RGlobalTwoWayMeanD$\,ms), but the interval ($\GainLoHvoD$ to $\GainHiHvoD\%$) includes zero, so this mean gain is not established at our sample size; the tail gain is clear (P99 $\RHvoPnnD$ vs.\ $\RGlobalTwoWayPnnD$\,ms, Figure~\ref{fig:cdf}b). Recall is the same as the global router's ($\RHvoRecC$ vs.\ $\RGlobalTwoWayRecC$ on ARXIV-384), and HVO is close to the cost model fed true selectivities ($\RCboTrueMeanC$ and $\RCboTrueMeanD$\,ms). The oracle's mean ($\ROracleMeanC$ and $\ROracleMeanD$\,ms) is sometimes \emph{above} HVO's, because it only accepts plans with Recall@10 $\ge0.9$.
 
-\emph{On synthetic data HVO ties the global router on the mean and wins on the tail.} HVO averages $\RHvoMeanA$ and $\RHvoMeanB$\,ms against $\RGlobalTwoWayMeanA$ and $\RGlobalTwoWayMeanB$\,ms, with P99 $\RHvoPnnA$ vs.\ $\RGlobalTwoWayPnnA$\,ms and $\RHvoPnnB$ vs.\ $\RGlobalTwoWayPnnB$\,ms. The resumable post-filter is strong across most of the selectivity range, so a single threshold already routes most queries well. The mean gain then comes only from the minority of queries the threshold misroutes, and HVO's planning time offsets it. With one partition ($L=1$, Table~\ref{tab:ablation}) HVO is faster than the global router on all four datasets.
+\emph{On synthetic data HVO ties the global router on the mean (both intervals include zero, Figure~\ref{fig:gainci}) and wins on the tail.} HVO averages $\RHvoMeanA$ and $\RHvoMeanB$\,ms against $\RGlobalTwoWayMeanA$ and $\RGlobalTwoWayMeanB$\,ms, with P99 $\RHvoPnnA$ vs.\ $\RGlobalTwoWayPnnA$\,ms and $\RHvoPnnB$ vs.\ $\RGlobalTwoWayPnnB$\,ms. The resumable post-filter is strong across most of the selectivity range, so a single threshold already routes most queries well. The mean gain then comes only from the minority of queries the threshold misroutes, and HVO's planning time offsets it. With one partition ($L=1$, Table~\ref{tab:ablation}) HVO is faster than the global router on all four datasets, and all four paired intervals exclude zero (gains $\GainHvoLOneC$, $\GainHvoLOneD$, $\GainHvoLOneA$ and $\GainHvoLOneB\%$; lower ends $\GainLoHvoLOneC$, $\GainLoHvoLOneD$, $\GainLoHvoLOneA$ and $\GainLoHvoLOneB\%$).
+
+\emph{Which queries are routed differently.} Figure~\ref{fig:split} shows that HVO and the global router send similar shares of queries to each plan. The difference lies in which queries go where, and the latency distributions (Figure~\ref{fig:cdf}) show where it pays: both routers match the fast post-filter on most queries, but HVO avoids the misrouted rare-match queries that make up the global router's tail.
 
 \emph{Correlation-blind estimates poison a good cost model, and index probing is the closest competitor.} Fed histogram estimates, the same cost model averages $\RCboPgHistMeanC$\,ms on ARXIV-384. Fed the HNSW probe, it averages $\RCboProbeMeanC$ and $\RCboProbeMeanD$\,ms ($\RRobProbeMeanC$ and $\RRobProbeMeanD$\,ms with minimax routing). That is behind HVO on ARXIV-384, where rare matches dominate the tail, and slightly \emph{ahead} of HVO on AMAZON-384 ($\RHvoMeanD$\,ms), where the probe estimates more accurately; HVO with $L=1$ ($\RHvoLOneMeanD$\,ms) is ahead of both. HVO's structural advantages over probing are that it never touches the index during planning and that it remains accurate on rare matches.
 
@@ -541,8 +677,75 @@ Tables~\ref{tab:e2e} and~\ref{tab:e2e_syn} report latency, recall and regret for
 \end{itemize}
 ACORN's cost could not be fitted by any smooth staircase: its adaptive stopping makes most queries cheap and a few very expensive, and the fitted variable term collapsed to zero. With that fit, the cost model sent rare-match queries to ACORN, and its mean on SYN-768 was worse than the global router's even with true selectivities. We therefore model ACORN with a monotone (isotonic) regression in the $k$-th-match horizon. Theorems~\ref{thm:regret} and~\ref{thm:robust} only need monotone costs, and for this plan $\Lambda$ is computed numerically instead of by Lemma~\ref{lem:sens}.
 
+
+\begin{figure*}[!t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    name=c1, width=0.47\textwidth, height=5.0cm,
+    xmode=log, ymin=0, ymax=100,
+    xlabel={Latency per query (ms, including planning)}, ylabel={Percentile of test queries},
+    xlabel style={font=\scriptsize}, ylabel style={font=\scriptsize}, ticklabel style={font=\scriptsize},
+    title style={font=\footnotesize\bfseries}, title={(a) ARXIV-384},
+    legend style={at={(1.07,-0.3)}, anchor=north, font=\tiny, draw=none, fill=white, inner sep=1pt, legend columns=7, /tikz/every even column/.append style={column sep=4pt}},
+    grid=major, grid style={dashed, gray!30}]
+\addplot[blue!75!black, thick, dashed] coordinates {\cdfPreC};
+\addplot[red!75!black, thick, dotted] coordinates {\cdfPostC};
+\addplot[purple!80!black, thick, dashdotted] coordinates {\cdfFusedC};
+\addplot[orange!85!black, thick] coordinates {\cdfGlobalC};
+\addplot[teal!80!black, thick, densely dashed] coordinates {\cdfProbeC};
+\addplot[green!55!black, very thick] coordinates {\cdfHvoC};
+\addplot[black, thin] coordinates {\cdfOracleC};
+\legend{Always $\Ppre$, Always $\Ppost$, Always $\Pfus$, Global $s_g$, CM + probe (robust), HVO, Oracle}
+\end{axis}
+\begin{axis}[
+    name=c2, at={(c1.east)}, anchor=west, xshift=1.0cm, width=0.47\textwidth, height=5.0cm,
+    xmode=log, ymin=0, ymax=100,
+    xlabel={Latency per query (ms, including planning)},
+    xlabel style={font=\scriptsize}, ticklabel style={font=\scriptsize},
+    title style={font=\footnotesize\bfseries}, title={(b) AMAZON-384},
+    grid=major, grid style={dashed, gray!30}]
+\addplot[blue!75!black, thick, dashed] coordinates {\cdfPreD};
+\addplot[red!75!black, thick, dotted] coordinates {\cdfPostD};
+\addplot[purple!80!black, thick, dashdotted] coordinates {\cdfFusedD};
+\addplot[orange!85!black, thick] coordinates {\cdfGlobalD};
+\addplot[teal!80!black, thick, densely dashed] coordinates {\cdfProbeD};
+\addplot[green!55!black, very thick] coordinates {\cdfHvoD};
+\addplot[black, thin] coordinates {\cdfOracleD};
+\end{axis}
+\end{tikzpicture}
+\caption{Distribution of per-query latency on the real test splits ($k=10$; percentiles 1--99, logarithmic latency axis in ms, including planning time). Curves further left are faster. ``Global $s_g$'': best tuned global-selectivity router; ``CM + probe'': the calibrated cost model fed the HNSW probe, with minimax routing. The always-post curve has the fastest body and the slowest tail; HVO follows the faster plans in the body and cuts the tail.}
+\label{fig:cdf}
+\end{figure*}
+
+\begin{figure}[!t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\columnwidth, height=4.6cm,
+    ybar stacked, bar width=6pt, ymin=0, ymax=100, enlarge x limits=0.05,
+    symbolic x coords={Co,Cg,Ch,Do,Dg,Dh,Ao,Ag,Ah,Bo,Bg,Bh},
+    xtick=data, xticklabels={O,G,H,O,G,H,O,G,H,O,G,H},
+    ylabel={Share of test queries (\%)}, ylabel style={font=\scriptsize}, ticklabel style={font=\scriptsize},
+    legend style={at={(0.5,1.02)}, anchor=south, font=\tiny, legend columns=3, draw=none},
+    clip=false]
+\addplot[fill=blue!55, draw=blue!70!black] coordinates {\splitallPre};
+\addplot[fill=purple!55, draw=purple!70!black] coordinates {\splitallFused};
+\addplot[fill=red!35, draw=red!60!black] coordinates {\splitallPost};
+\legend{$\Ppre$, $\Pfus$, $\Ppost$}
+\node[font=\tiny] at (axis cs:Cg,-17) {ARXIV-384};
+\node[font=\tiny] at (axis cs:Dg,-17) {AMAZON-384};
+\node[font=\tiny] at (axis cs:Ag,-17) {SYN-128};
+\node[font=\tiny] at (axis cs:Bg,-17) {SYN-768};
+\end{axis}
+\end{tikzpicture}
+\caption{Plan choices at $k=10$: share of test queries routed to each plan by the oracle (O), the best tuned global-selectivity router (G) and HVO (H). The global router is two-way on every dataset, so it never chooses $\Pfus$. HVO and the global router send similar shares to each plan; they differ in \emph{which} queries they send (plan accuracy in Tables~\ref{tab:e2e} and~\ref{tab:e2e_syn}).}
+\label{fig:split}
+\end{figure}
+
+
 \subsection{Inside PostgreSQL}\label{sec:eval_pg}
-Table~\ref{tab:pg} runs the same test queries as SQL against PostgreSQL with \texttt{pgvector}.
+Table~\ref{tab:pg} runs the same test queries as SQL against PostgreSQL with \texttt{pgvector}, and Figure~\ref{fig:pg} plots each configuration's recall against its latency.
 
 \emph{Stock \texttt{pgvector} and Exqutor are fast because they return incomplete answers.} With default settings, \texttt{pgvector}'s HNSW scan stops after $ef_{\text{search}}=40$ candidates. For filtered queries it then returns fewer than $k$ rows or rows outside the true top-$k$: mean recall $\PGStockRecC$ on ARXIV-384, with $\PGStockLowC\%$ of queries below 0.9. Exqutor behaves the same way (recall $\PGExqutorRecC$): as its design predicts, its estimator does not activate on single-table top-$k$ queries.
 
@@ -552,12 +755,80 @@ Table~\ref{tab:pg} runs the same test queries as SQL against PostgreSQL with \te
 
 In PostgreSQL the choice is therefore a recall--latency trade-off, not a single speedup. The configurations most users would run are either fast and wrong (defaults) or still wrong on 17--28\% of queries (iterative scan). HVO offers two operating points that dominate the forced iterative scan.
 
+
+\begin{figure*}[!t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    name=p1, width=0.47\textwidth, height=5.0cm,
+    xmode=log, ymin=0.45, ymax=1.0,
+    xlabel={Mean client latency (ms)}, ylabel={Mean Recall@10},
+    xlabel style={font=\scriptsize}, ylabel style={font=\scriptsize}, ticklabel style={font=\scriptsize},
+    title style={font=\footnotesize\bfseries}, title={(a) ARXIV-384},
+    legend style={at={(1.07,-0.3)}, anchor=north, font=\tiny, draw=none, fill=white, inner sep=1pt, legend columns=8, /tikz/every even column/.append style={column sep=4pt}},
+    grid=major, grid style={dashed, gray!30}]
+\addplot[only marks, mark=o, red!75!black, thick] coordinates {\pgStockC};
+\addplot[only marks, mark=triangle, orange!85!black, thick] coordinates {\pgIterC};
+\addplot[only marks, mark=x, gray!70!black, thick] coordinates {\pgExqutorC};
+\addplot[only marks, mark=square, blue!75!black, thick] coordinates {\pgPreC};
+\addplot[only marks, mark=diamond, purple!80!black, thick] coordinates {\pgPostC};
+\addplot[only marks, mark=*, green!55!black, mark size=2.5pt] coordinates {\pgHvoNorecC};
+\addplot[only marks, mark=square*, green!35!black, mark size=2.3pt] coordinates {\pgHvoC};
+\addplot[only marks, mark=star, black, mark size=3pt] coordinates {\pgOracleC};
+\legend{Defaults, Iterative scan, Exqutor, Forced $\Ppre$, Forced $\Ppost$, HVO, HVO recall-aware, Oracle}
+\end{axis}
+\begin{axis}[
+    name=p2, at={(p1.east)}, anchor=west, xshift=1.0cm, width=0.47\textwidth, height=5.0cm,
+    xmode=log, ymin=0.45, ymax=1.0,
+    xlabel={Mean client latency (ms)},
+    xlabel style={font=\scriptsize}, ticklabel style={font=\scriptsize},
+    title style={font=\footnotesize\bfseries}, title={(b) AMAZON-384},
+    grid=major, grid style={dashed, gray!30}]
+\addplot[only marks, mark=o, red!75!black, thick] coordinates {\pgStockD};
+\addplot[only marks, mark=triangle, orange!85!black, thick] coordinates {\pgIterD};
+\addplot[only marks, mark=square, blue!75!black, thick] coordinates {\pgPreD};
+\addplot[only marks, mark=diamond, purple!80!black, thick] coordinates {\pgPostD};
+\addplot[only marks, mark=*, green!55!black, mark size=2.5pt] coordinates {\pgHvoNorecD};
+\addplot[only marks, mark=square*, green!35!black, mark size=2.3pt] coordinates {\pgHvoD};
+\addplot[only marks, mark=star, black, mark size=3pt] coordinates {\pgOracleD};
+\end{axis}
+\end{tikzpicture}
+\caption{Recall--latency trade-off inside PostgreSQL~16 + \texttt{pgvector} ($k=10$, test split; logarithmic latency axis). Up and to the left is better. Defaults and Exqutor are fast but incomplete; HVO lies above and to the left of the forced iterative post-filter on both datasets, and the recall-aware variant approaches the oracle's recall at a higher latency. Exqutor was run on ARXIV-384 only.}
+\label{fig:pg}
+\end{figure*}
+
+
 \subsection{Varying $k$, calibrator transfer, and plan generations}\label{sec:eval_more}
-\emph{Varying $k$} (Table~\ref{tab:k}). At $k=100$, HVO's mean is $\KHundredGainC\%$ and $\KHundredGainD\%$ below the global router's on the real data, and its P99 regret is 2--10$\times$ lower on every dataset. At $k=1$ the picture reverses on three of four datasets. Single-result queries are so cheap that planning time dominates, and both HPBS and the probe estimate poorly, because the horizon is a single match ($h_1$, P99 Q-errors in the tens to hundreds). HVO is then slower than the threshold router except on ARXIV-384 ($\KOneHvoMeanC$ vs.\ $\KOneGlobalMeanC$\,ms). Routing pays off once queries cost more than planning.
+\emph{Varying $k$} (Table~\ref{tab:k}, Figure~\ref{fig:gainci}). At $k=100$, HVO's mean is $\KHundredGainC\%$ and $\KHundredGainD\%$ below the global router's on the real data, and its P99 regret is 2--10$\times$ lower on every dataset. At $k=1$ the picture reverses on three of four datasets. Single-result queries are so cheap that planning time dominates, and both HPBS and the probe estimate poorly, because the horizon is a single match ($h_1$, P99 Q-errors in the tens to hundreds). HVO is then slower than the threshold router except on ARXIV-384 ($\KOneHvoMeanC$ vs.\ $\KOneGlobalMeanC$\,ms). Routing pays off once queries cost more than planning. Figure~\ref{fig:gainci} adds paired 95\% intervals: the gain is clearly positive on ARXIV-384 at every $k$ and on AMAZON-384 at $k=100$, while the intervals for SYN-128 and SYN-768 at $k=10$ and $k=100$ and for AMAZON-384 at $k\le10$ include zero. At $k=1$, HVO is detectably slower than the global router on SYN-768.
 
 \emph{Calibrator transfer} (Table~\ref{tab:transfer}). A calibrator trained only on SYN-128 brings the P99 Q-error on ARXIV-384 to $\TrSynToRealCQ$, against $\TrSelfCQ$ when trained on ARXIV-384 itself and $\TrNoneCQ$ without a calibrator. The calibrator learns the sketch's systematic biases, which are largely dataset independent. Transfer into AMAZON-384 is the weakest: its query-anchored workload has the within-cell correlation the other datasets lack.
 
 \emph{Plan generations} (Table~\ref{tab:impl}). The resumable post-filter is far faster than restarting a search with a doubled budget (P99 $\RAlwaysPostPnnC$ against several seconds on ARXIV-384), and ACORN-1 is faster than faiss's bitmap-filtered HNSW but loses recall at low local selectivity. HVO benefits from the better plans: its mean on ARXIV-384 falls from 1.84\,ms with the first-generation plans to $\RHvoMeanC$\,ms.
+
+
+\begin{figure}[!t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\columnwidth, height=5.0cm,
+    xmode=log, xmin=0.6, xmax=160, ymin=-60, ymax=60,
+    xtick={1,10,100}, xticklabels={$k=1$,$k=10$,$k=100$},
+    ylabel={Mean-latency gain over global router (\%)},
+    ylabel style={font=\scriptsize}, ticklabel style={font=\scriptsize},
+    legend style={at={(0.98,0.03)}, anchor=south east, font=\tiny, draw=none, fill=white, inner sep=1pt, legend columns=2},
+    grid=major, grid style={dashed, gray!30}]
+\addplot[gray, thin, forget plot, domain=0.6:160, samples=2] {0};
+\addplot[only marks, mark=*, blue!80!black, error bars/.cd, y dir=both, y explicit] coordinates {\gainciC};
+\addplot[only marks, mark=square*, red!75!black, error bars/.cd, y dir=both, y explicit] coordinates {\gainciD};
+\addplot[only marks, mark=triangle*, green!50!black, error bars/.cd, y dir=both, y explicit] coordinates {\gainciA};
+\addplot[only marks, mark=diamond*, orange!85!black, error bars/.cd, y dir=both, y explicit] coordinates {\gainciB};
+\legend{ARXIV-384, AMAZON-384, SYN-128, SYN-768}
+\end{axis}
+\end{tikzpicture}
+\caption{Relative mean-latency gain of HVO over the best tuned global-selectivity router, $1-\overline{\text{lat}}_{\text{HVO}}/\overline{\text{lat}}_{\text{global}}$, with paired 95\% bootstrap intervals over test queries (2000 resamples). Points are offset horizontally per dataset for legibility. Intervals that cross zero indicate no detectable difference.}
+\label{fig:gainci}
+\end{figure}
+
 
 \subsection{Ablations and scan kernels}\label{sec:eval_hw}
 \begin{table}[!t]
@@ -584,9 +855,45 @@ Data & Kernel & $c_{\text{scan}}$ (ns) & $s_g^*$@0.3\% & $s_g^*$@1\% & \#pre opt
     \item \emph{Counted instead of measured costs.} Replacing measured costs by distance-evaluation counts makes sequential and random distance computations cost the same. HVO's mean rises from $\RHvoMeanC$ to $\RHvoAgnosticMeanC$\,ms on ARXIV-384, from $\RHvoMeanD$ to $\RHvoAgnosticMeanD$\,ms on AMAZON-384 and from $\RHvoMeanA$ to $\RHvoAgnosticMeanA$\,ms on SYN-128. Counting distances ignores that random accesses cost far more than sequential ones and that ACORN must first materialize the predicate map, so the agnostic model sends many queries to ACORN.
     \item \emph{Calibrator.} Without it, HVO is slower on every dataset ($\RHvoRawMeanC$, $\RHvoRawMeanD$, $\RHvoRawMeanA$ and $\RHvoRawMeanB$\,ms), because the raw sketch's heavier tail forces a wider interval.
     \item \emph{Point vs.\ minimax routing.} Under HPBS's actual error distribution the two differ by a few percent in mean and P99 latency (Tables~\ref{tab:e2e} and~\ref{tab:e2e_syn}). Minimax routing's value here is its guarantee (Theorem~\ref{thm:robust}), not a measured gain.
-    \item \emph{Interval width.} Widths between the $0.75$- and $0.95$-quantile of the training Q-error perform within about $15\%$ of each other.
+    \item \emph{Interval width} (Figure~\ref{fig:sweep}). No width is best on every dataset. Widths up to the $0.95$-quantile of the training Q-error stay within about $15\%$ of one another in mean latency, and point routing is the fastest in mean on ARXIV-384. The widest interval ($q=0.99$) is the slowest in mean on all four datasets, because it routes too many queries to the exact scan. We keep $q=0.9$, fixed before looking at test data, for its guarantee rather than for a measured gain.
     \item \emph{Runtime guard.} The early-exit guard never fired with the resumable post-filter, so it contributes nothing; we keep it in the table for completeness.
 \end{itemize}
+
+
+\begin{figure*}[!t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    name=s1, width=0.47\textwidth, height=4.8cm,
+    xmin=-0.03, xmax=1.02, xtick={0,0.5,0.75,0.9,0.99}, xticklabels={point,0.5,0.75,0.9,0.99},
+    xlabel={Interval width: training Q-error quantile $q$}, ylabel={Mean latency (ms)},
+    xlabel style={font=\scriptsize}, ylabel style={font=\scriptsize}, ticklabel style={font=\scriptsize},
+    title style={font=\footnotesize\bfseries}, title={(a) Mean latency},
+    legend style={at={(1.07,-0.3)}, anchor=north, font=\tiny, draw=none, fill=white, inner sep=1pt, legend columns=4, /tikz/every even column/.append style={column sep=4pt}},
+    grid=major, grid style={dashed, gray!30}]
+\addplot[blue!80!black, mark=*, thick] coordinates {\sweepMeanC};
+\addplot[red!75!black, mark=square*, thick] coordinates {\sweepMeanD};
+\addplot[green!50!black, mark=triangle*, thick] coordinates {\sweepMeanA};
+\addplot[orange!85!black, mark=diamond*, thick] coordinates {\sweepMeanB};
+\legend{ARXIV-384, AMAZON-384, SYN-128, SYN-768}
+\end{axis}
+\begin{axis}[
+    name=s2, at={(s1.east)}, anchor=west, xshift=1.0cm, width=0.47\textwidth, height=4.8cm,
+    xmin=-0.03, xmax=1.02, xtick={0,0.5,0.75,0.9,0.99}, xticklabels={point,0.5,0.75,0.9,0.99},
+    xlabel={Interval width: training Q-error quantile $q$}, ylabel={P99 latency (ms)},
+    xlabel style={font=\scriptsize}, ylabel style={font=\scriptsize}, ticklabel style={font=\scriptsize},
+    title style={font=\footnotesize\bfseries}, title={(b) P99 latency},
+    grid=major, grid style={dashed, gray!30}]
+\addplot[blue!80!black, mark=*, thick] coordinates {\sweepPnnC};
+\addplot[red!75!black, mark=square*, thick] coordinates {\sweepPnnD};
+\addplot[green!50!black, mark=triangle*, thick] coordinates {\sweepPnnA};
+\addplot[orange!85!black, mark=diamond*, thick] coordinates {\sweepPnnB};
+\end{axis}
+\end{tikzpicture}
+\caption{Effect of the uncertainty-interval width on HVO ($k=10$, test split, latency including planning). ``point'': point routing ($\eta=1$); otherwise $\eta$ is the $q$-quantile of the calibrated sketch's Q-error on the training split. HVO's default is $q=0.9$. No width is best on every dataset; the widest interval ($q=0.99$) has the highest mean latency on all four.}
+\label{fig:sweep}
+\end{figure*}
+
 
 \begin{table*}[!t]
 \footnotesize
@@ -687,7 +994,7 @@ The bounds are loose. Already at $\eta=1.1$ the bound is $\NoiseBoundOnePOneA$, 
 \label{fig:regret}
 \end{figure}
 
-\section{Discussion and Limitations}\label{sec:discussion}
+\subsection{Discussion and Limitations}\label{sec:discussion}
 \emph{Data and workloads.} Two of the four datasets are real, but none of the predicate workloads is a real query log; no public log of filtered vector queries exists. The arXiv predicates are random, and the Amazon predicates are derived from the query product. HVO's advantage was larger on real data than on synthetic data, which suggests that real correlation is stronger than our generator's. On the anchored Amazon workload, though, index probing estimated better than HPBS. Within-cell correlation is the sketch's blind spot (Proposition~\ref{prop:decomp}), and a workload that filters on attributes of the query itself is exactly what produces it.
 
 \emph{One machine, one graph library.} All results come from an Apple M4. We did not run on an x86 server, so the scan kernels are NEON and the AVX-512 behavior of the original design is untested. Absolute latencies and fitted constants must be recalibrated per machine; the structure of the cost model carries over. Graph-plan costs depend on implementation details: restarting a faiss search, the resumable scan, and ACORN have very different cost curves. One of them (ACORN) could only be modeled nonparametrically.
@@ -698,10 +1005,12 @@ The bounds are loose. Already at $\eta=1.1$ the bound is $\NoiseBoundOnePOneA$, 
 
 \emph{Small $k$ and planning time.} At $k=1$, queries are cheap enough that $\NativeUsA$--$\NativeUsC\,\mu$s of planning outweighs better routing, and both HPBS and the probe estimate poorly. An optimizer should skip HVO when the cheapest plan is predicted to cost less than planning.
 
+\emph{Statistical scope.} The 95\% intervals cover query sampling on one run per configuration; run-to-run timing variation was not replicated, and the intervals are not corrected for multiple comparisons. The mean gain on AMAZON-384 for the default configuration, and on both synthetic datasets, is within these intervals' uncertainty.
+
 \emph{Not evaluated.} We have not evaluated updates, \texttt{GROUP BY} top-$k$ (which changes the post-filtering horizon from $k$ matches to $k$ distinct groups), multi-way joins, or skewed foreign keys in isolation.
 
-\section{Conclusion}
-Choosing a plan for filtered vector search requires knowing how far the search must travel before it meets $k$ matches. We defined that distance precisely, as the $k$-th-match local selectivity, and showed it is what global-selectivity routing misses. HPBS estimates it from a compact sketch that never touches the index and stays accurate on rare local matches, where index probing fails. Inside PostgreSQL, HVO is both faster and more accurate than \texttt{pgvector}'s iterative scan, on a workload where stock \texttt{pgvector} and Exqutor reach a mean recall of only about $\PGStockRecC$. In our benchmark it lowers mean latency by $\MeanGainVsGlobalC\%$ and $\MeanGainVsGlobalD\%$ on real arXiv and Amazon data relative to tuned global-selectivity routing, and cuts tail latency several-fold. Routing works only if plan costs are measured on the machine rather than counted. The gains vanish at $k=1$, index probing remains a strong alternative when matches crowd around the query, and all results come from one machine.
+\section{Conclusion}\label{sec:conclusion}
+Choosing a plan for filtered vector search requires knowing how far the search must travel before it meets $k$ matches. We defined that distance as the $k$-th-match local selectivity and showed that it is what global-selectivity routing misses. A compact sketch estimates it without touching the index and stays accurate on rare local matches, where index probing fails, and a minimax router with measured plan costs turns the estimate into a plan with provable regret bounds. Inside PostgreSQL, HVO is both faster and more accurate than \texttt{pgvector}'s iterative scan, on workloads where stock \texttt{pgvector} and Exqutor reach a mean recall of only about $\PGStockRecC$. In the benchmark it lowers mean latency on arXiv by $\GainHvoC\%$ (95\% interval $\GainLoHvoC$--$\GainHiHvoC\%$) relative to tuned global-selectivity routing and cuts tail latency several-fold on both real datasets; on Amazon and on synthetic data the default configuration's mean gain is not distinguishable from zero. The gains vanish at $k=1$, routing works only if plan costs are measured rather than counted, and all results come from one machine. Future work should evaluate x86 servers and other graph libraries, maintain the sketch under updates, add cost-based paths to PostgreSQL instead of steering plan-type settings, and test the method on real query logs once they become available.
 
 \section*{Declarations and Reproducibility}
 \noindent\textbf{Funding and conflicts of interest:} This research received no external funding. The authors declare no conflicts of interest.
