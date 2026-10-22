@@ -1,0 +1,5 @@
+
+\emph{Calibrator transfer.} Trained only on SYN-128, the calibrator brings the 99th-percentile error on ARXIV-384 to $\TrSynToRealCQ$, against $\TrSelfCQ$ when trained on ARXIV-384 itself and $\TrNoneCQ$ without one: it learns the sketch's systematic biases, which are largely the same across datasets.
+
+\emph{Regret under injected error.} Replacing the estimate on SYN-128 by the truth multiplied or divided by $\eta$ (20 repetitions per $\eta$), the model's regret never exceeded the bounds of Lemma~\ref{lem:sens} and Theorems~\ref{thm:regret}--\ref{thm:robust} across $\NoiseChecksA$ routed queries ($\NoiseViolTotalA$ violations), and minimax routing had zero regret on every query whose best plan was filtering first. The bounds are loose: at $\eta=1.1$ the bound is $\NoiseBoundOnePOneA$, against an observed 99th-percentile regret of $\NoiseModelOnePOneA$.
+

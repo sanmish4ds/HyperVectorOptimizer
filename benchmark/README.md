@@ -139,5 +139,5 @@ system should reach high recall in every regime without paying exact-scan cost o
 
 ## Citation
 
-If you use this benchmark, please cite the HyperVector-Optimizer paper (Mishra and Chukkapalli, 2026,
+If you use this benchmark, please cite the HyperVector-Optimizer paper (Mishra, 2026,
 under submission) and the source datasets.

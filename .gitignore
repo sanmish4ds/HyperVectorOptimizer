@@ -16,3 +16,12 @@ pg/*.dylib
 pg/*.bc
 hvo/kernels/libacorn.so
 results/dev*
+paper/hvo_overleaf.zip
+paper/pvldb_overleaf.zip
+paper/pvldb/*.aux
+paper/pvldb/*.log
+paper/pvldb/*.out
+paper/pvldb/*.blg
+paper/pvldb/*.bbl
+paper/pvldb/*.fls
+paper/pvldb/*.fdb_latexmk

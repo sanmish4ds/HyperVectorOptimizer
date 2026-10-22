@@ -1,0 +1,41 @@
+\documentclass[sigconf, nonacm]{acmart}
+
+%%% do not modify the following VLDB block %%
+%%% VLDB block start %%%
+\usepackage{pvldb}% VLDB/PVLDB formatting overrides, see pvldb.sty for details.
+%%% VLDB block end %%%
+
+\renewcommand\vldbdoi{XX.XX/XXX.XX}
+\renewcommand\vldbpages{XXX-XXX}
+\renewcommand\vldbavailabilityurl{https://github.com/sanmish4ds/HyperVectorOptimizer}
+
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc}
+\setlength{\emergencystretch}{3em}
+
+% Every experimental number below is generated from results/*.json by experiments/make_tables.py.
+\input{generated/numbers}
+\input{generated/figdata}
+
+\newcommand{\sg}{s_g}
+\newcommand{\sloc}{s_{\text{loc}}}
+\newcommand{\Ppre}{\Pi_{\text{pre}}}
+\newcommand{\Pfus}{\Pi_{\text{fused}}}
+\newcommand{\Ppost}{\Pi_{\text{post}}}
+
+\begin{document}
+\title{It's Not How Many, It's Where: Local-Selectivity Plan Routing for Filtered Vector Search}
+
+\author{Sanjay Mishra}
+\affiliation{%
+  \institution{Independent Researcher}
+  \city{Raleigh}
+  \state{NC}
+  \country{USA}
+}
+\email{sanmish4@icloud.com}
+
