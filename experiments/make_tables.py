@@ -382,7 +382,7 @@ def main():
     P = load("pg") or {}
     TR = load("transfer") or {"pairs": []}
     NAT = {n: load(n + "_native") for n, _ in DS}
-    m = macros(R) + noise_coords(R) + extra_macros(R, RK, P, TR, NAT) + ci_macros(R)
+    m = macros(R) + noise_coords(R) + extra_macros(R, RK, P, TR, NAT) + ci_macros(R) + example_macros()
     open(os.path.join(OUT, "numbers.tex"), "w").write(m)
     open(os.path.join(OUT, "card_rows.tex"), "w").write(card_table(R))
     open(os.path.join(OUT, "e2e_real_rows.tex"), "w").write(e2e_table(R, ("arxiv-384", "amazon-384")))
@@ -395,6 +395,65 @@ def main():
     open(os.path.join(OUT, "impl_rows.tex"), "w").write(impl_table(R, R1))
     open(os.path.join(OUT, "figdata.tex"), "w").write(fig_coords(R) + fig_coords2(R, RK, P))
     print("wrote", sorted(os.listdir(OUT)))
+
+
+def example_macros():
+    """Macros for the running example (results/examples.json, written by examples.py)."""
+    p = os.path.join(RESULTS, "examples.json")
+    if not os.path.exists(p):
+        return ""
+    E = json.load(open(p))
+    m = []
+    def mac(name, val):
+        m.append(f"\\newcommand{{\\{name}}}{{{val}}}")
+    def tex(x):
+        return x.replace("_", "\\_").replace("{", "\\{").replace("}", "\\}")
+    for tag, key in (("A", "anti"), ("B", "pos")):
+        x = E[key]
+        mac(f"Ex{tag}Title", x["title"])
+        mac(f"Ex{tag}Id", x["id"])
+        mac(f"Ex{tag}Primary", x["primary"])
+        mac(f"Ex{tag}Filter", " AND ".join("\\texttt{" + tex(f) + "}" for f in x["filter"]))
+        mac(f"Ex{tag}Sg", f"{100 * x['sg']:.1f}")
+        mac(f"Ex{tag}Sloc", f"{100 * x['sloc']:.3g}")
+        mac(f"Ex{tag}Hk", f"{x['hk']:,}".replace(",", "{,}"))
+        mac(f"Ex{tag}MatchesNeeded", f"{x['hk']:,}".replace(",", "{,}"))
+        mac(f"Ex{tag}Rho", f"{x['rho']:.2f}")
+        mac(f"Ex{tag}Matches", f"{round(x['sg'] * 1_000_000):,}".replace(",", "{,}"))
+        for pl, nm in (("pre", "Pre"), ("fused", "Fused"), ("post", "Post")):
+            mac(f"Ex{tag}T{nm}", f"{x['t_ms'][pl]:.2f}")
+            mac(f"Ex{tag}Rec{nm}", f"{x['recall'][pl]:.1f}")
+            mac(f"Ex{tag}CostLo{nm}", f"{x['cost_lo_ms'][pl]:.2f}")
+            mac(f"Ex{tag}CostHi{nm}", f"{x['cost_hi_ms'][pl]:.2f}")
+            mac(f"Ex{tag}CostTrue{nm}", f"{x['cost_true_ms'][pl]:.2f}")
+        for k_, nm in (("oracle", "Oracle"), ("global_choice", "Global"), ("hvo_choice", "Hvo")):
+            mac(f"Ex{tag}{nm}", {"pre": "\\Ppre", "fused": "\\Pfus", "post": "\\Ppost"}[x[k_]])
+        mac(f"Ex{tag}EstRaw", f"{100 * x['sloc_raw']:.3g}")
+        mac(f"Ex{tag}EstCal", f"{100 * x['sloc_hat']:.3g}")
+        mac(f"Ex{tag}EstProbe", f"{100 * x['sloc_probe']:.3g}")
+        mac(f"Ex{tag}EstLo", f"{100 * x['sloc_hat'] / E['eta']:.3g}")
+        mac(f"Ex{tag}EstHi", f"{100 * min(1.0, x['sloc_hat'] * E['eta']):.3g}")
+        mac(f"Ex{tag}SgHat", f"{100 * x['sg_hat']:.1f}")
+        mac(f"Ex{tag}PlanUs", f"{x['plan_us']:.0f}")
+        best = min(x["t_ms"][x["oracle"]], 1e9)
+        mac(f"Ex{tag}GlobalSlowdown", f"{x['t_ms'][x['global_choice']] / best:.0f}")
+    mac("ExEta", f"{E['eta']:.2f}")
+    mac("ExThreshold", f"{100 * E['global_threshold']:.1f}")
+    c = E["context"]
+    mac("CtxN", c["n"])
+    mac("CtxSlocMin", f"{100 * c['sloc_min']:.2g}")
+    mac("CtxSlocMax", f"{100 * c['sloc_max']:.0f}")
+    mac("CtxPre", f"{100 * c['share_pre']:.0f}")
+    mac("CtxPost", f"{100 * c['share_post']:.0f}")
+    mac("CtxFused", f"{100 * c['share_fused']:.0f}")
+    for n_, t in (("arxiv-384", "C"), ("amazon-384", "D")):
+        st = E["stats"].get(n_)
+        if st:
+            mac(f"Disagree{t}", f"{100 * st['disagree']:.0f}")
+            mac(f"HvoFasterDisagree{t}", f"{100 * st['hvo_faster_when_disagree']:.0f}")
+            mac(f"GlobalWrong{t}", f"{100 * st['global_wrong']:.0f}")
+            mac(f"HvoWrong{t}", f"{100 * st['hvo_wrong']:.0f}")
+    return "\n".join(m) + "\n"
 
 
 def ci_macros(R):

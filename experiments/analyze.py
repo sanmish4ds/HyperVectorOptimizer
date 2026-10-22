@@ -400,6 +400,22 @@ def main(name):
                     key=lambda ab: t_tr[np.arange(tr.sum()), np.where(sg_tr < ab[0], 0, np.where(sg_tr < ab[1], 1, 2))].mean())
         R["global-3way"] = evaluate(np.where(sg_te < best3[0], 0, np.where(sg_te < best3[1], 1, 2)), tt, rr, 0 * ot, ot, oc)
         R["global-3way"]["thresholds"] = [float(x) for x in best3]
+        if pre == "simd":
+            # per-query record of the test split, for the worked examples in the paper (examples.py)
+            eta_h = R["eta_train"]["hpbs+cal"]
+            sl_h, sg_h = est_sloc["hpbs+cal"][te], sg_hat["hpbs+cal"][te]
+            lo_c = CM.costs(sg_h, np.clip(sl_h / eta_h, 1e-7, 1), *args)
+            hi_c = CM.costs(sg_h, np.clip(sl_h * eta_h, 1e-7, 1), *args)
+            true_c = CM.costs(A["sg"][te], A["sloc"][te], *args)
+            ex = dict(plans=list(PLANS), eta=eta_h, global_threshold=float(best), idx=np.flatnonzero(te).tolist(),
+                      sg=A["sg"][te].tolist(), sloc=A["sloc"][te].tolist(), tau=A["tau"][te].tolist(),
+                      t=tt.tolist(), rec=rr.tolist(), oracle=oc.tolist(),
+                      global_choice=np.where(sg_te < best, 0, 2).tolist(), hvo_choice=C_hvo.argmin(1).tolist(),
+                      sloc_raw=raw[te, 1].tolist(), sloc_hat=sl_h.tolist(), sg_hat=sg_h.tolist(),
+                      sloc_probe=est_sloc["probe"][te].tolist(), cost_lo=lo_c.tolist(), cost_hi=hi_c.tolist(),
+                      cost_true=true_c.tolist(), plan_s=est_time["hpbs+cal"][te].tolist())
+            with open(rfile(name).replace(".json", "_examples.json"), "w") as f:
+                json.dump(ex, f)
         # runtime early-exit guard (replayed from the recorded first round of the post plan)
         ch = C_hvo.argmin(1)
         lat = tt[np.arange(len(ch)), ch].copy()

@@ -1,0 +1,124 @@
+{
+ "rule": "Selection rule (fixed in code, applied to the k=10 test split): among pairs of queries with 1-2 predicate\nterms and no join whose global selectivities are within 15% of each other (and between 2% and 40%), one\nanti-correlated and one positively correlated, whose best (oracle) plans differ, that the tuned global\nrouter nevertheless sends to the same plan and that HVO routes as the oracle does, take the pair on which the global router's misrouting costs the most (ratio of\nits latency to the oracle's on the misrouted query). The example is chosen to illustrate the failure mode;\nthe aggregate statistics report how often it occurs.",
+ "eta": 2.5158923601586602,
+ "global_threshold": 0.07943282347242822,
+ "stats": {
+  "arxiv-384": {
+   "n": 1470,
+   "disagree": 0.154421768707483,
+   "hvo_faster_when_disagree": 0.8854625550660793,
+   "global_wrong": 0.20068027210884354,
+   "hvo_wrong": 0.10136054421768707
+  },
+  "amazon-384": {
+   "n": 1455,
+   "disagree": 0.0859106529209622,
+   "hvo_faster_when_disagree": 0.696,
+   "global_wrong": 0.12371134020618557,
+   "hvo_wrong": 0.08934707903780069
+  }
+ },
+ "anti": {
+  "query": 1194,
+  "id": "1612.03929",
+  "title": "Deep Active Learning for Dialogue Generation",
+  "primary": "cs.CL",
+  "filter": [
+   "archive in {quant-ph, math-ph, solv-int, adap-org, mtrl-th}"
+  ],
+  "sg": 0.058544,
+  "sloc": 0.0007412898443291327,
+  "hk": 13490,
+  "rho": -0.9764219753552923,
+  "regime": "anti",
+  "t_ms": {
+   "pre": 4.029667004942894,
+   "fused": 1.430500065907836,
+   "post": 17.245583003386855
+  },
+  "recall": {
+   "pre": 1.0,
+   "fused": 0.8,
+   "post": 0.8
+  },
+  "oracle": "pre",
+  "global_choice": "pre",
+  "hvo_choice": "pre",
+  "sloc_raw": 0.0005877809253448537,
+  "sloc_hat": 0.0005776168641002856,
+  "sloc_probe": 0.001953125,
+  "sg_hat": 0.05854304801034928,
+  "cost_lo_ms": {
+   "pre": 3.5413576536386717,
+   "fused": 8.672971365494064,
+   "post": 58.54673560827236
+  },
+  "cost_hi_ms": {
+   "pre": 3.5413576536386717,
+   "fused": 6.119597052358691,
+   "post": 8.997702189451676
+  },
+  "cost_true_ms": {
+   "pre": 3.5414014216354914,
+   "fused": 8.672971365494064,
+   "post": 16.55095106158057
+  },
+  "plan_us": 278.1133563257754
+ },
+ "pos": {
+  "query": 1149,
+  "id": "1608.07327",
+  "title": "SIS Epidemic Spreading with Correlated Heterogeneous Infection Rates",
+  "primary": "physics.soc-ph",
+  "filter": [
+   "published = yes",
+   "archive in {physics, hep-th, stat, hep-ex, alg-geom, q-alg, adap-org, funct-an, comp-gas}"
+  ],
+  "sg": 0.066356,
+  "sloc": 0.29411764705882354,
+  "hk": 34,
+  "rho": 0.7085650413615758,
+  "regime": "pos",
+  "t_ms": {
+   "pre": 5.225999979302287,
+   "fused": 2.579416846856475,
+   "post": 0.10783295147120953
+  },
+  "recall": {
+   "pre": 1.0,
+   "fused": 1.0,
+   "post": 1.0
+  },
+  "oracle": "post",
+  "global_choice": "pre",
+  "hvo_choice": "post",
+  "sloc_raw": 0.062343957954865595,
+  "sloc_hat": 0.12396933273040751,
+  "sloc_probe": 0.2265625,
+  "sg_hat": 0.06686374743437395,
+  "cost_lo_ms": {
+   "pre": 4.426817984384378,
+   "fused": 4.053001771374359,
+   "post": 0.6339159668887367
+  },
+  "cost_hi_ms": {
+   "pre": 4.426817984384378,
+   "fused": 4.053001771374359,
+   "post": 0.16329989614710444
+  },
+  "cost_true_ms": {
+   "pre": 4.403474150681975,
+   "fused": 4.053001771374359,
+   "post": 0.16329989614710444
+  },
+  "plan_us": 106.23824084177613
+ },
+ "context": {
+  "n": 76,
+  "sloc_min": 0.00030799556486386595,
+  "sloc_max": 0.5555555555555556,
+  "share_pre": 0.18421052631578946,
+  "share_post": 0.7236842105263158,
+  "share_fused": 0.09210526315789473
+ }
+}
